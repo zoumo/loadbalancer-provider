@@ -323,9 +323,9 @@ func (p *IpvsdrProvider) setIptablesMark(protocol, mac string, mark int) (bool, 
 
 func (p *IpvsdrProvider) deleteIptablesMark(protocol, mac string, mark int) error {
 	if mac == "" {
-		return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.iface, "-d", p.vip, "-p", "tcp", "-j", "MARK", "--set-mark", strconv.Itoa(mark))
+		return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.iface, "-d", p.vip, "-p", protocol, "-j", "MARK", "--set-mark", strconv.Itoa(mark))
 	}
-	return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.iface, "-d", p.vip, "-p", "tcp", "-m", "mac", "--mac-source", mac, "-j", "MARK", "--set-mark", strconv.Itoa(mark))
+	return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.iface, "-d", p.vip, "-p", protocol, "-m", "mac", "--mac-source", mac, "-j", "MARK", "--set-mark", strconv.Itoa(mark))
 
 }
 
@@ -367,7 +367,7 @@ func (p *IpvsdrProvider) flushIptablesMark() {
 
 	for _, neighbor := range p.neighbors {
 		p.deleteIptablesMark("tcp", neighbor.mac.String(), dropMark)
-		p.deleteIptablesMark("tcp", neighbor.mac.String(), dropMark)
+		p.deleteIptablesMark("udp", neighbor.mac.String(), dropMark)
 	}
 
 }
