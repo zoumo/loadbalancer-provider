@@ -32,7 +32,7 @@ func (opts *Options) AddFlags(app *cli.App) {
 			Usage:       "run with debug mode",
 			Destination: &opts.Debug,
 		},
-		cli.BoolFlag{
+		cli.BoolTFlag{
 			Name:        "unicast",
 			Usage:       "use unicast instead of multicast for communication with other keepalived instances",
 			Destination: &opts.Unicast,

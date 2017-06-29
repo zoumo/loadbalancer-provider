@@ -24,8 +24,8 @@ const (
 )
 
 type ipmac struct {
-	ip  string
-	mac net.HardwareAddr
+	IP  string
+	MAC net.HardwareAddr
 }
 
 type virtualServer struct {

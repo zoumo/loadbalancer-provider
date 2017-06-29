@@ -14,7 +14,7 @@ func TestTemplate(t *testing.T) {
 
 	conf["iptablesChain"] = iptablesChain
 	conf["iface"] = "en0"
-	conf["myIP"] = "127.0.0.1"
+	conf["myIP"] = "192.168.1.1"
 	conf["netmask"] = "255.255.255.255"
 	conf["vss"] = []virtualServer{
 		{
@@ -27,11 +27,10 @@ func TestTemplate(t *testing.T) {
 		},
 	}
 	conf["vips"] = []string{"192.168.99.200"}
-	conf["neighbors"] = []string{"192.168.1.1", "192.168.1.2"}
+	conf["neighbors"] = []ipmac{{IP: "192.168.1.2"}}
 	conf["priority"] = 100
-	conf["useUnicast"] = false
+	conf["useUnicast"] = true
 	conf["vrid"] = 100
 	conf["acceptMark"] = acceptMark
-
 	assert.Nil(t, tmpl.Execute(ioutil.Discard, conf))
 }

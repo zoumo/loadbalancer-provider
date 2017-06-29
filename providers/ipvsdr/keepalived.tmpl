@@ -20,7 +20,7 @@ vrrp_instance vips {
   {{ if .useUnicast }}
   unicast_src_ip {{ .myIP }}
   unicast_peer { {{ range .neighbors }}
-    {{ .ip }}{{ end }}
+    {{ .IP }}{{ end }}
   }
   {{ end }}
 

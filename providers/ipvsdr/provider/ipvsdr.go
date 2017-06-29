@@ -309,7 +309,7 @@ func (p *IpvsdrProvider) resolveNeighbors(neighbors []string) []ipmac {
 			log.Errorf("failed to resolve hardware address for %v", neighbor)
 			continue
 		}
-		resolvedNeighbors = append(resolvedNeighbors, ipmac{ip: neighbor, mac: hwAddr})
+		resolvedNeighbors = append(resolvedNeighbors, ipmac{IP: neighbor, MAC: hwAddr})
 	}
 	return resolvedNeighbors
 }
@@ -345,13 +345,13 @@ func (p *IpvsdrProvider) ensureIptablesMark(neighbors []ipmac) {
 	// make sure that all traffics which come from the neighbors will be marked with 2
 	// an than lvs will ignore it
 	for _, neighbor := range neighbors {
-		_, err := p.setIptablesMark("tcp", neighbor.mac.String(), dropMark)
+		_, err := p.setIptablesMark("tcp", neighbor.MAC.String(), dropMark)
 		if err != nil {
-			log.Error("failed to ensure iptables tcp rule for", log.Fields{"ip": neighbor.ip, "mac": neighbor.mac.String(), "mark": dropMark, "err": err})
+			log.Error("failed to ensure iptables tcp rule for", log.Fields{"ip": neighbor.IP, "mac": neighbor.MAC.String(), "mark": dropMark, "err": err})
 		}
-		_, err = p.setIptablesMark("udp", neighbor.mac.String(), dropMark)
+		_, err = p.setIptablesMark("udp", neighbor.MAC.String(), dropMark)
 		if err != nil {
-			log.Error("failed to ensure iptables udp rule for", log.Fields{"ip": neighbor.ip, "mac": neighbor.mac.String(), "mark": dropMark, "err": err})
+			log.Error("failed to ensure iptables udp rule for", log.Fields{"ip": neighbor.IP, "mac": neighbor.MAC.String(), "mark": dropMark, "err": err})
 		}
 	}
 
@@ -366,8 +366,8 @@ func (p *IpvsdrProvider) flushIptablesMark() {
 	p.deleteIptablesMark("udp", "", acceptMark)
 
 	for _, neighbor := range p.neighbors {
-		p.deleteIptablesMark("tcp", neighbor.mac.String(), dropMark)
-		p.deleteIptablesMark("udp", neighbor.mac.String(), dropMark)
+		p.deleteIptablesMark("tcp", neighbor.MAC.String(), dropMark)
+		p.deleteIptablesMark("udp", neighbor.MAC.String(), dropMark)
 	}
 
 }
