@@ -76,13 +76,14 @@ func resetIPVS() error {
 	return nil
 }
 
-type nodeInfo struct {
-	iface   string
+type netInterface struct {
+	name    string
 	ip      string
 	netmask int
+	mac     net.HardwareAddr
 }
 
-func getLoopBackInfo() (*nodeInfo, error) {
+func getLoopBackInfo() (*netInterface, error) {
 
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -98,10 +99,11 @@ func getLoopBackInfo() (*nodeInfo, error) {
 				// get loopback
 				if ipnet, ok := a.(*net.IPNet); ok && ipnet.IP.IsLoopback() {
 					mask, _ := ipnet.Mask.Size()
-					info := &nodeInfo{
-						iface:   iface.Name,
+					info := &netInterface{
+						name:    iface.Name,
 						ip:      ipnet.IP.String(),
 						netmask: mask,
+						mac:     iface.HardwareAddr,
 					}
 					return info, nil
 				}
@@ -112,13 +114,12 @@ func getLoopBackInfo() (*nodeInfo, error) {
 }
 
 // getNetworkInfo returns information of the node where the pod is running
-func getNetworkInfo(ip string) (*nodeInfo, error) {
-	iface, _, mask := interfaceByIP(ip)
-	return &nodeInfo{
-		iface:   iface,
-		ip:      ip,
-		netmask: mask,
-	}, nil
+func getNetworkInfo(ip string) (*netInterface, error) {
+	niface := interfaceByIP(ip)
+	if niface.name == "" {
+		return nil, fmt.Errorf("Can not find net interface for ip:%v", ip)
+	}
+	return &niface, nil
 }
 
 func getNeighbors(ip string, nodes []string) (neighbors []string) {
@@ -150,40 +151,48 @@ func netInterfaces() []net.Interface {
 
 // interfaceByIP returns the local network interface name that is using the
 // specified IP address. If no interface is found returns an empty string.
-func interfaceByIP(ip string) (string, string, int) {
+func interfaceByIP(ip string) netInterface {
 	for _, iface := range netInterfaces() {
-		ifaceIP, mask, err := ipByInterface(iface.Name)
-		if err == nil && ip == ifaceIP {
-			return iface.Name, ip, mask
+		niface, err := ipByInterface(iface.Name)
+		if err == nil && ip == niface.ip {
+			return niface
 		}
 	}
 
-	return "", "", 0
+	return netInterface{}
 }
 
-func ipByInterface(name string) (string, int, error) {
+func ipByInterface(name string) (netInterface, error) {
+	ret := netInterface{
+		name:    name,
+		ip:      "",
+		netmask: 32,
+		mac:     net.HardwareAddr(""),
+	}
+
 	iface, err := net.InterfaceByName(name)
 	if err != nil {
-		return "", 32, err
+		return ret, err
 	}
 
 	addrs, err := iface.Addrs()
 	if err != nil {
-		return "", 32, err
+		return ret, err
 	}
 
 	for _, a := range addrs {
 		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 			if ipnet.IP.To4() != nil {
-				ip := ipnet.IP.String()
+				ret.ip = ipnet.IP.String()
 				ones, _ := ipnet.Mask.Size()
-				mask := ones
-				return ip, mask, nil
+				ret.netmask = ones
+				ret.mac = iface.HardwareAddr
+				return ret, nil
 			}
 		}
 	}
 
-	return "", 32, errors.New("Found no IPv4 addresses")
+	return ret, errors.New("Found no IPv4 addresses")
 }
 
 type stringSlice []string

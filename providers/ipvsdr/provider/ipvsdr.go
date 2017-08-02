@@ -59,7 +59,7 @@ var (
 
 // IpvsdrProvider ...
 type IpvsdrProvider struct {
-	nodeInfo          *nodeInfo
+	nodeInfo          *netInterface
 	reloadRateLimiter flowcontrol.RateLimiter
 	keepalived        *keepalived
 	storeLister       core.StoreLister
@@ -120,14 +120,14 @@ func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 		return nil
 	}
 
-	log.Notice("Updating config")
+	log.Info("Updating config")
 
 	// get selected nodes' ip
 	selectedNodes := p.getNodesIP(lb.Spec.Nodes.Names)
 	if len(selectedNodes) == 0 {
+		log.Error("no selected nodes")
 		return nil
 	}
-
 	svc := virtualServer{
 		VIP:        lb.Spec.Providers.Ipvsdr.Vip,
 		Scheduler:  string(lb.Spec.Providers.Ipvsdr.Scheduler),
@@ -143,18 +143,20 @@ func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 		*lb.Status.ProvidersStatuses.Ipvsdr.Vrid,
 	)
 	if err != nil {
+		log.Error("error update keealived config", log.Fields{"err": err})
 		return err
 	}
 
 	// check md5
 	md5, err := checksum(keepalivedCfg)
 	if err == nil && md5 == p.cfgMD5 {
+		log.Warn("md5 is not changed", log.Fields{"md5.old": p.cfgMD5, "md5.new": md5})
 		return nil
 	}
 
 	p.ensureIptablesMark(neighbors)
 
-	p.cfgMD5 = md5
+	// p.cfgMD5 = md5
 	err = p.keepalived.Reload()
 	if err != nil {
 		log.Error("reload keepalived error", log.Fields{"err": err})
@@ -288,7 +290,7 @@ func (p *IpvsdrProvider) setLoopbackVIP() error {
 		return err
 	}
 
-	out, err := k8sexec.New().Command("ip", "addr", "add", p.vip+"/32", "dev", lo.iface).CombinedOutput()
+	out, err := k8sexec.New().Command("ip", "addr", "add", p.vip+"/32", "dev", lo.name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("set VIP %s to dev lo error: %v\n%s", p.vip, err, out)
 	}
@@ -308,7 +310,7 @@ func (p *IpvsdrProvider) removeLoopbackVIP() error {
 		return err
 	}
 
-	out, err := k8sexec.New().Command("ip", "addr", "del", p.vip+"/32", "dev", lo.iface).CombinedOutput()
+	out, err := k8sexec.New().Command("ip", "addr", "del", p.vip+"/32", "dev", lo.name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("removing configured VIP from dev lo error: %v\n%s", err, out)
 	}
@@ -316,11 +318,10 @@ func (p *IpvsdrProvider) removeLoopbackVIP() error {
 }
 
 func (p *IpvsdrProvider) resolveNeighbors(neighbors []string) []ipmac {
-
 	resolvedNeighbors := make([]ipmac, 0)
 
 	for _, neighbor := range neighbors {
-		hwAddr, err := arp.Resolve(p.nodeInfo.iface, neighbor)
+		hwAddr, err := arp.Resolve(p.nodeInfo.name, neighbor)
 		if err != nil {
 			log.Errorf("failed to resolve hardware address for %v", neighbor)
 			continue
@@ -332,20 +333,21 @@ func (p *IpvsdrProvider) resolveNeighbors(neighbors []string) []ipmac {
 
 func (p *IpvsdrProvider) setIptablesMark(protocol, mac string, mark int) (bool, error) {
 	if mac == "" {
-		return p.ipt.EnsureRule(utiliptables.Append, "mangle", "PREROUTING", "-i", p.nodeInfo.iface, "-d", p.vip, "-p", protocol, "-j", "MARK", "--set-mark", strconv.Itoa(mark))
+		return p.ipt.EnsureRule(utiliptables.Append, "mangle", "PREROUTING", "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
 	}
-	return p.ipt.EnsureRule(utiliptables.Append, "mangle", "PREROUTING", "-i", p.nodeInfo.iface, "-d", p.vip, "-p", protocol, "-m", "mac", "--mac-source", mac, "-j", "MARK", "--set-mark", strconv.Itoa(mark))
+	return p.ipt.EnsureRule(utiliptables.Append, "mangle", "PREROUTING", "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol, "-m", "mac", "--mac-source", mac, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
 }
 
 func (p *IpvsdrProvider) deleteIptablesMark(protocol, mac string, mark int) error {
 	if mac == "" {
-		return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.iface, "-d", p.vip, "-p", protocol, "-j", "MARK", "--set-mark", strconv.Itoa(mark))
+		return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
 	}
-	return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.iface, "-d", p.vip, "-p", protocol, "-m", "mac", "--mac-source", mac, "-j", "MARK", "--set-mark", strconv.Itoa(mark))
+	return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol, "-m", "mac", "--mac-source", mac, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
 
 }
 
 func (p *IpvsdrProvider) ensureIptablesMark(neighbors []ipmac) {
+	log.Info("ensure iptables rules")
 	if p.neighbors == nil {
 		p.neighbors = make([]ipmac, 0)
 	}
@@ -358,7 +360,7 @@ func (p *IpvsdrProvider) ensureIptablesMark(neighbors []ipmac) {
 	p.setIptablesMark("udp", "", acceptMark)
 
 	// all neighbors' rules should be under the basic rule, to override it
-	// make sure that all traffics which come from the neighbors will be marked with 2
+	// make sure that all traffics which come from the neighbors will be marked with 0
 	// an than lvs will ignore it
 	for _, neighbor := range neighbors {
 		_, err := p.setIptablesMark("tcp", neighbor.MAC.String(), dropMark)
