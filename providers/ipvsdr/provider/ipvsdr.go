@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
@@ -30,11 +31,16 @@ import (
 	log "github.com/zoumo/logdog"
 
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/util/flowcontrol"
 	utildbus "k8s.io/kubernetes/pkg/util/dbus"
 	k8sexec "k8s.io/kubernetes/pkg/util/exec"
-	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
+	"k8s.io/kubernetes/pkg/util/iptables"
 	"k8s.io/kubernetes/pkg/util/sysctl"
+)
+
+const (
+	tableMangle = "mangle"
 )
 
 var _ core.Provider = &IpvsdrProvider{}
@@ -55,6 +61,9 @@ var (
 		// Always use the best local address for ARP requests sent on interface.
 		"net/ipv4/conf/lo/arp_announce": 2,
 	}
+
+	reservedTCPPorts = []string{"80", "443", "18080", "8181", "8282"}
+	reservedUDPPorts = []string{}
 )
 
 // IpvsdrProvider ...
@@ -64,10 +73,9 @@ type IpvsdrProvider struct {
 	keepalived        *keepalived
 	storeLister       core.StoreLister
 	sysctlDefault     map[string]int
-	vip               string
+	ipt               iptables.Interface
 	cfgMD5            string
-	ipt               utiliptables.Interface
-	neighbors         []ipmac
+	vip               string
 }
 
 // NewIpvsdrProvider creates a new ipvs-dr LoadBalancer Provider.
@@ -80,7 +88,7 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *netv1alpha1.LoadBalancer, unicast bool
 
 	execer := k8sexec.New()
 	dbus := utildbus.New()
-	iptInterface := utiliptables.New(execer, dbus, utiliptables.ProtocolIpv4)
+	iptInterface := iptables.New(execer, dbus, iptables.ProtocolIpv4)
 
 	ipvs := &IpvsdrProvider{
 		nodeInfo:          nodeInfo,
@@ -88,7 +96,6 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *netv1alpha1.LoadBalancer, unicast bool
 		vip:               lb.Spec.Providers.Ipvsdr.Vip,
 		sysctlDefault:     make(map[string]int, 0),
 		ipt:               iptInterface,
-		neighbors:         make([]ipmac, 0),
 	}
 
 	// neighbors := getNodeNeighbors(nodeInfo, clusterNodes)
@@ -106,6 +113,22 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *netv1alpha1.LoadBalancer, unicast bool
 	return ipvs, nil
 }
 
+func (p *IpvsdrProvider) getExportedPorts(tcpcm, udpcm *v1.ConfigMap) ([]string, []string) {
+	tcpPorts := make([]string, 0)
+	udpPorts := make([]string, 0)
+	tcpPorts = append(tcpPorts, reservedTCPPorts...)
+	udpPorts = append(udpPorts, reservedUDPPorts...)
+
+	for port := range tcpcm.Data {
+		tcpPorts = append(tcpPorts, port)
+	}
+	for port := range udpcm.Data {
+		udpPorts = append(udpPorts, port)
+	}
+	return tcpPorts, udpPorts
+
+}
+
 // OnUpdate ...
 func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 	p.reloadRateLimiter.Accept()
@@ -120,6 +143,19 @@ func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 		return nil
 	}
 
+	tcpcm, err := p.storeLister.ConfigMap.ConfigMaps(lb.Namespace).Get(lb.Status.ProxyStatus.TCPConfigMap)
+	if err != nil {
+		log.Error("can not find tcp configmap for loadbalancer")
+		return err
+	}
+	udpcm, err := p.storeLister.ConfigMap.ConfigMaps(lb.Namespace).Get(lb.Status.ProxyStatus.UDPConfigMap)
+	if err != nil {
+		log.Error("can not find udp configmap for loadbalancer")
+		return err
+	}
+
+	tcpPorts, udpPorts := p.getExportedPorts(tcpcm, udpcm)
+
 	log.Info("Updating config")
 
 	// get selected nodes' ip
@@ -128,6 +164,7 @@ func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 		log.Error("no selected nodes")
 		return nil
 	}
+
 	svc := virtualServer{
 		VIP:        lb.Spec.Providers.Ipvsdr.Vip,
 		Scheduler:  string(lb.Spec.Providers.Ipvsdr.Scheduler),
@@ -136,7 +173,7 @@ func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 
 	neighbors := p.resolveNeighbors(getNeighbors(p.nodeInfo.ip, selectedNodes))
 
-	err := p.keepalived.UpdateConfig(
+	err = p.keepalived.UpdateConfig(
 		[]virtualServer{svc},
 		neighbors,
 		getNodePriority(p.nodeInfo.ip, selectedNodes),
@@ -147,14 +184,14 @@ func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 		return err
 	}
 
+	p.ensureIptablesMark(neighbors, tcpPorts, udpPorts)
+
 	// check md5
 	md5, err := checksum(keepalivedCfg)
 	if err == nil && md5 == p.cfgMD5 {
 		log.Warn("md5 is not changed", log.Fields{"md5.old": p.cfgMD5, "md5.new": md5})
 		return nil
 	}
-
-	p.ensureIptablesMark(neighbors)
 
 	// p.cfgMD5 = md5
 	err = p.keepalived.Reload()
@@ -172,6 +209,7 @@ func (p *IpvsdrProvider) Start() {
 
 	p.changeSysctl()
 	p.setLoopbackVIP()
+	p.ensureChain()
 	go p.keepalived.Start()
 	return
 }
@@ -205,7 +243,7 @@ func (p *IpvsdrProvider) Stop() error {
 		log.Error("remove loopback vip error", log.Fields{"err": err})
 	}
 
-	p.flushIptablesMark()
+	p.deleteChain()
 
 	p.keepalived.Stop()
 
@@ -246,6 +284,34 @@ func (p *IpvsdrProvider) getNodesIP(names []string) []string {
 	}
 
 	return ips
+}
+
+func (p *IpvsdrProvider) ensureChain() {
+	// create chain
+	ae, err := p.ipt.EnsureChain(tableMangle, iptables.Chain(iptablesChain))
+	if err != nil {
+		log.Fatalf("unexpected error: %v", err)
+	}
+	if ae {
+		log.Infof("chain %v already existed", iptablesChain)
+	}
+
+	// add rule to let all traffic jump to our chain
+	p.ipt.EnsureRule(iptables.Append, tableMangle, iptables.ChainPrerouting, "-j", iptablesChain)
+}
+
+func (p *IpvsdrProvider) flushChain() {
+	log.Info("flush iptables rules", log.Fields{"table": tableMangle, "chain": iptablesChain})
+	p.ipt.FlushChain(tableMangle, iptables.Chain(iptablesChain))
+}
+
+func (p *IpvsdrProvider) deleteChain() {
+	// flush chain
+	p.flushChain()
+	// delete jump rule
+	p.ipt.DeleteRule(tableMangle, iptables.ChainPrerouting, "-j", iptablesChain)
+	// delete chain
+	p.ipt.DeleteChain(tableMangle, iptablesChain)
 }
 
 // changeSysctl changes the required network setting in /proc to get
@@ -331,61 +397,56 @@ func (p *IpvsdrProvider) resolveNeighbors(neighbors []string) []ipmac {
 	return resolvedNeighbors
 }
 
-func (p *IpvsdrProvider) setIptablesMark(protocol, mac string, mark int) (bool, error) {
-	if mac == "" {
-		return p.ipt.EnsureRule(utiliptables.Append, "mangle", "PREROUTING", "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
+func (p *IpvsdrProvider) setIptablesMark(protocol string, mark int, mac string, ports []string) (bool, error) {
+	args := make([]string, 0)
+	args = append(args, "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol)
+
+	if len(ports) > 0 {
+		args = append(args, "-m", "multiport", "--dports", strings.Join(ports, ","))
 	}
-	return p.ipt.EnsureRule(utiliptables.Append, "mangle", "PREROUTING", "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol, "-m", "mac", "--mac-source", mac, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
+
+	if mac != "" {
+		args = append(args, "-m", "mac", "--mac-source", mac)
+	}
+
+	args = append(args, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
+
+	return p.ipt.EnsureRule(iptables.Append, tableMangle, iptablesChain, args...)
 }
 
-func (p *IpvsdrProvider) deleteIptablesMark(protocol, mac string, mark int) error {
-	if mac == "" {
-		return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
-	}
-	return p.ipt.DeleteRule("mangle", "PREROUTING", "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol, "-m", "mac", "--mac-source", mac, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
-
-}
-
-func (p *IpvsdrProvider) ensureIptablesMark(neighbors []ipmac) {
+func (p *IpvsdrProvider) ensureIptablesMark(neighbors []ipmac, tcpPorts, udpPorts []string) {
 	log.Info("ensure iptables rules")
-	if p.neighbors == nil {
-		p.neighbors = make([]ipmac, 0)
-	}
 
-	p.flushIptablesMark()
+	// flush all rules
+	p.flushChain()
 
 	// this two rules should be appended firstly
-	// they mark all", "tcp and ", "udp traffics with 1
-	p.setIptablesMark("tcp", "", acceptMark)
-	p.setIptablesMark("udp", "", acceptMark)
+	// they mark all matched tcp and udp traffics with 1
+	if len(tcpPorts) > 0 {
+		_, err := p.setIptablesMark("tcp", acceptMark, "", tcpPorts)
+		if err != nil {
+			log.Error("error ensure iptables tcp rule for", log.Fields{"tcpPorts": tcpPorts})
+		}
+	}
+	if len(udpPorts) > 0 {
+		_, err := p.setIptablesMark("udp", acceptMark, "", udpPorts)
+		if err != nil {
+			log.Error("error ensure iptables udp rule for", log.Fields{"udpPorts": udpPorts})
+		}
+	}
 
-	// all neighbors' rules should be under the basic rule, to override it
+	// all neighbors' rules should be under the basic rules, to override it
 	// make sure that all traffics which come from the neighbors will be marked with 0
-	// an than lvs will ignore it
+	// and than lvs will ignore it
 	for _, neighbor := range neighbors {
-		_, err := p.setIptablesMark("tcp", neighbor.MAC.String(), dropMark)
+		_, err := p.setIptablesMark("tcp", dropMark, neighbor.MAC.String(), nil)
 		if err != nil {
 			log.Error("failed to ensure iptables tcp rule for", log.Fields{"ip": neighbor.IP, "mac": neighbor.MAC.String(), "mark": dropMark, "err": err})
 		}
-		_, err = p.setIptablesMark("udp", neighbor.MAC.String(), dropMark)
+		_, err = p.setIptablesMark("udp", dropMark, neighbor.MAC.String(), nil)
 		if err != nil {
 			log.Error("failed to ensure iptables udp rule for", log.Fields{"ip": neighbor.IP, "mac": neighbor.MAC.String(), "mark": dropMark, "err": err})
 		}
-	}
-
-	p.neighbors = neighbors
-
-}
-
-func (p *IpvsdrProvider) flushIptablesMark() {
-	log.Info("flush all marked rules")
-
-	p.deleteIptablesMark("tcp", "", acceptMark)
-	p.deleteIptablesMark("udp", "", acceptMark)
-
-	for _, neighbor := range p.neighbors {
-		p.deleteIptablesMark("tcp", neighbor.MAC.String(), dropMark)
-		p.deleteIptablesMark("udp", neighbor.MAC.String(), dropMark)
 	}
 
 }
