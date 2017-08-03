@@ -122,6 +122,8 @@ func Run(opts *Options) error {
 		Backend:               ipvsdr,
 		LoadBalancerName:      opts.LoadBalancerName,
 		LoadBalancerNamespace: opts.LoadBalancerNamespace,
+		TCPConfigMap:          lb.Status.ProxyStatus.TCPConfigMap,
+		UDPConfigMap:          lb.Status.ProxyStatus.UDPConfigMap,
 	})
 
 	// handle shutdown
