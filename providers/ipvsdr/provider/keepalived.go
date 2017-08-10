@@ -36,7 +36,8 @@ const (
 	keepalivedTmpl = "/root/keepalived.tmpl"
 
 	acceptMark = 1
-	dropMark   = 2
+	dropMark   = 0
+	mask       = "0x00000001"
 )
 
 type ipmac struct {
@@ -53,7 +54,7 @@ type virtualServer struct {
 type keepalived struct {
 	started    bool
 	useUnicast bool
-	nodeInfo   *nodeInfo
+	nodeInfo   *netInterface
 	ipt        iptables.Interface
 	cmd        *exec.Cmd
 	tmpl       *template.Template
@@ -74,7 +75,7 @@ func (k *keepalived) UpdateConfig(vss []virtualServer, neighbors []ipmac, priori
 
 	conf := make(map[string]interface{})
 	conf["iptablesChain"] = iptablesChain
-	conf["iface"] = k.nodeInfo.iface
+	conf["iface"] = k.nodeInfo.name
 	conf["myIP"] = k.nodeInfo.ip
 	conf["netmask"] = k.nodeInfo.netmask
 	conf["vss"] = vss
@@ -134,6 +135,7 @@ func (k *keepalived) Start() {
 func (k *keepalived) Reload() error {
 	if !k.started {
 		// TODO: add a warning indicating that keepalived is not started?
+		log.Warn("keepalived is not started, skip the reload")
 		return nil
 	}
 
@@ -167,8 +169,8 @@ func (k *keepalived) Stop() {
 }
 
 func (k *keepalived) removeVIP(vip string) error {
-	log.Info("removing configured VIP %v from dev %v", vip, k.nodeInfo.iface)
-	out, err := k8sexec.New().Command("ip", "addr", "del", vip+"/32", "dev", k.nodeInfo.iface).CombinedOutput()
+	log.Info("removing configured VIP %v from dev %v", vip, k.nodeInfo.name)
+	out, err := k8sexec.New().Command("ip", "addr", "del", vip+"/32", "dev", k.nodeInfo.name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error reloading keepalived: %v\n%s", err, out)
 	}

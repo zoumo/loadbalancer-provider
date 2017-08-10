@@ -93,6 +93,8 @@ type NodesSpec struct {
 // ProxySpec is a description of a proxy
 type ProxySpec struct {
 	Type ProxyType `json:"type"`
+	// Config contains the optional config of proxy
+	Config map[string]string `json:"config,omitempty"`
 	// Compute Resources required by this container.
 	// Cannot be updated.
 	// +optional
@@ -179,12 +181,12 @@ type LoadBalancerStatus struct {
 
 // ProxyStatus represents the current status of a Proxy
 type ProxyStatus struct {
-	Replicas     int32    `json:"replicas,omitempty"`
-	Deployments  []string `json:"deployments,omitempty"`
-	IngressClass string   `json:"ingressClass,omitempty"`
-	ConfigMap    string   `json:"configMap,omitempty"`
-	TCPConfigMap string   `json:"tcpConfigMap,omitempty"`
-	UDPConfigMap string   `json:"udpConfigMap,omitempty"`
+	PodStatuses  `json:",inline"`
+	Deployment   string `json:"deployment,omitempty"`
+	IngressClass string `json:"ingressClass,omitempty"`
+	ConfigMap    string `json:"configMap,omitempty"`
+	TCPConfigMap string `json:"tcpConfigMap,omitempty"`
+	UDPConfigMap string `json:"udpConfigMap,omitempty"`
 }
 
 // ProvidersStatuses represents the current status of Providers
@@ -205,8 +207,10 @@ type ServiceProviderStatus struct {
 
 // IpvsdrProviderStatus represents the current status of the ipvsdr provider
 type IpvsdrProviderStatus struct {
-	Vip  string `json:"vip"`
-	Vrid *int   `json:"vrid"`
+	PodStatuses `json:",inline"`
+	Deployment  string `json:"deployment,omitempty"`
+	Vip         string `json:"vip"`
+	Vrid        *int   `json:"vrid,omitempty"`
 }
 
 // AliyunProviderStatus represents the current status of the aliyun provider
@@ -215,4 +219,24 @@ type AliyunProviderStatus struct {
 
 // AzureProviderStatus represents the current status of the azure provider
 type AzureProviderStatus struct {
+}
+
+// PodStatuses represents the current statuses of a list of pods
+type PodStatuses struct {
+	Replicas      int32       `json:"replicas,omitempty"`
+	TotalReplicas int32       `json:"totalReplicas,omitempty"`
+	ReadyReplicas int32       `json:"readyReplicas,omitempty"`
+	Statuses      []PodStatus `json:"podStatuses,omitempty"`
+}
+
+// PodStatus represents the current status of pods
+type PodStatus struct {
+	Name            string `json:"name"`
+	Ready           bool   `json:"ready"`
+	RestartCount    int32  `json:"restartCount"`
+	ReadyContainers int32  `json:"readyContainers"`
+	TotalContainers int32  `json:"totalContainers"`
+	NodeName        string `json:"nodeName"`
+	Reason          string `json:"reason"`
+	Message         string `json:"message,omitempty"`
 }

@@ -19,6 +19,8 @@ package provider
 import (
 	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
 	netlisters "github.com/caicloud/loadbalancer-controller/pkg/listers/networking/v1alpha1"
+	"github.com/caicloud/loadbalancer-controller/pkg/tprclient"
+	"k8s.io/client-go/kubernetes"
 	v1listers "k8s.io/client-go/listers/core/v1"
 )
 
@@ -57,4 +59,16 @@ type Info struct {
 type StoreLister struct {
 	LoadBalancer netlisters.LoadBalancerLister
 	Node         v1listers.NodeLister
+	ConfigMap    v1listers.ConfigMapLister
+}
+
+// Configuration contains all the settings required by an LoadBalancer controller
+type Configuration struct {
+	KubeClient            kubernetes.Interface
+	TPRClient             tprclient.Interface
+	Backend               Provider
+	LoadBalancerName      string
+	LoadBalancerNamespace string
+	TCPConfigMap          string
+	UDPConfigMap          string
 }

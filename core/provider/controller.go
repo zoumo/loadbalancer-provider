@@ -18,6 +18,7 @@ package provider
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	log "github.com/zoumo/logdog"
@@ -25,25 +26,15 @@ import (
 	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
 	"github.com/caicloud/loadbalancer-controller/pkg/informers"
 	netlisters "github.com/caicloud/loadbalancer-controller/pkg/listers/networking/v1alpha1"
-	"github.com/caicloud/loadbalancer-controller/pkg/tprclient"
 	controllerutil "github.com/caicloud/loadbalancer-controller/pkg/util/controller"
 	"github.com/caicloud/loadbalancer-controller/pkg/util/validation"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
-
-// Configuration contains all the settings required by an LoadBalancer controller
-type Configuration struct {
-	KubeClient            kubernetes.Interface
-	TPRClient             tprclient.Interface
-	Backend               Provider
-	LoadBalancerName      string
-	LoadBalancerNamespace string
-}
 
 // GenericProvider holds the boilerplate code required to build an LoadBalancer Provider.
 type GenericProvider struct {
@@ -75,10 +66,14 @@ func NewLoadBalancerProvider(cfg *Configuration) *GenericProvider {
 	}
 
 	lbinformer := gp.factory.Networking().V1alpha1().LoadBalancer()
+	cminformer := gp.factory.Core().V1().ConfigMaps()
 	lbinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    gp.addLoadBalancer,
 		UpdateFunc: gp.updateLoadBalancer,
 		DeleteFunc: gp.deleteLoadBalancer,
+	})
+	cminformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		UpdateFunc: gp.updateConfigMap,
 	})
 
 	// sync nodes
@@ -88,9 +83,10 @@ func NewLoadBalancerProvider(cfg *Configuration) *GenericProvider {
 	gp.cfg.Backend.SetListers(StoreLister{
 		Node:         nodeinformer.Lister(),
 		LoadBalancer: lbinformer.Lister(),
+		ConfigMap:    cminformer.Lister(),
 	})
 
-	gp.helper = controllerutil.NewHelperForKeyFunc(&netv1alpha1.LoadBalancer{}, gp.queue, gp.syncLoadBalancer, controllerutil.PassthroughKeyFunc)
+	gp.helper = controllerutil.NewHelper(&netv1alpha1.LoadBalancer{}, gp.queue, gp.syncLoadBalancer)
 	gp.lbLister = lbinformer.Lister()
 
 	return gp
@@ -152,7 +148,7 @@ func (p *GenericProvider) Stop() error {
 
 func (p *GenericProvider) addLoadBalancer(obj interface{}) {
 	lb := obj.(*netv1alpha1.LoadBalancer)
-	if p.filtered(lb) {
+	if p.filterLoadBalancer(lb) {
 		return
 	}
 	log.Info("Adding LoadBalancer ")
@@ -169,7 +165,7 @@ func (p *GenericProvider) updateLoadBalancer(oldObj, curObj interface{}) {
 		return
 	}
 
-	if p.filtered(cur) {
+	if p.filterLoadBalancer(cur) {
 		return
 	}
 	log.Info("Updating LoadBalancer")
@@ -194,7 +190,7 @@ func (p *GenericProvider) deleteLoadBalancer(obj interface{}) {
 		}
 	}
 
-	if p.filtered(lb) {
+	if p.filterLoadBalancer(lb) {
 		return
 	}
 
@@ -203,7 +199,31 @@ func (p *GenericProvider) deleteLoadBalancer(obj interface{}) {
 	p.helper.Enqueue(lb)
 }
 
-func (p *GenericProvider) filtered(lb *netv1alpha1.LoadBalancer) bool {
+func (p *GenericProvider) updateConfigMap(oldObj, curObj interface{}) {
+	old := oldObj.(*v1.ConfigMap)
+	cur := curObj.(*v1.ConfigMap)
+
+	if old.ResourceVersion == cur.ResourceVersion {
+		// Periodic resync will send update events for all known LoadBalancer.
+		// Two different versions of the same LoadBalancer will always have different RVs.
+		return
+	}
+
+	// namespace and name can not change, so we check one of them is enough
+	if p.filterConfigMap(cur) {
+		return
+	}
+
+	if reflect.DeepEqual(old.Data, cur.Data) {
+		// nothing changed
+		return
+	}
+
+	p.helper.Enqueue(cache.ExplicitKey(p.cfg.LoadBalancerNamespace + "/" + p.cfg.LoadBalancerName))
+
+}
+
+func (p *GenericProvider) filterLoadBalancer(lb *netv1alpha1.LoadBalancer) bool {
 	if lb.Namespace == p.cfg.LoadBalancerNamespace && lb.Name == p.cfg.LoadBalancerName {
 		return false
 	}
@@ -211,21 +231,21 @@ func (p *GenericProvider) filtered(lb *netv1alpha1.LoadBalancer) bool {
 	return true
 }
 
-func (p *GenericProvider) syncLoadBalancer(obj interface{}) error {
-	lb, ok := obj.(*netv1alpha1.LoadBalancer)
-	if !ok {
-		return fmt.Errorf("expect loadbalancer, got %v", obj)
+func (p *GenericProvider) filterConfigMap(cm *v1.ConfigMap) bool {
+	if cm.Namespace == p.cfg.LoadBalancerNamespace && (cm.Name == p.cfg.TCPConfigMap || cm.Name == p.cfg.UDPConfigMap) {
+		return false
 	}
+	return true
+}
 
-	// Validate loadbalancer scheme
-	if err := validation.ValidateLoadBalancer(lb); err != nil {
-		log.Debug("invalid loadbalancer scheme", log.Fields{"err": err})
+func (p *GenericProvider) syncLoadBalancer(obj interface{}) error {
+	key := obj.(string)
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
 		return err
 	}
 
-	key, _ := controllerutil.KeyFunc(lb)
-
-	nlb, err := p.lbLister.LoadBalancers(lb.Namespace).Get(lb.Name)
+	lb, err := p.lbLister.LoadBalancers(namespace).Get(name)
 	if errors.IsNotFound(err) {
 		log.Warn("LoadBalancer has been deleted", log.Fields{"lb": key})
 		// deleted
@@ -237,13 +257,10 @@ func (p *GenericProvider) syncLoadBalancer(obj interface{}) error {
 		return err
 	}
 
-	// fresh lb
-	if lb.UID != nlb.UID {
-		//  original loadbalancer is gone
-		return nil
+	if err := validation.ValidateLoadBalancer(lb); err != nil {
+		log.Debug("invalid loadbalancer scheme", log.Fields{"err": err})
+		return err
 	}
-
-	lb = nlb
 
 	return p.cfg.Backend.OnUpdate(lb)
 }
