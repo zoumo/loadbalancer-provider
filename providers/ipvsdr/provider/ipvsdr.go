@@ -26,8 +26,10 @@ import (
 	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
 	"github.com/caicloud/loadbalancer-controller/pkg/util/validation"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/arp"
+	"github.com/caicloud/loadbalancer-provider/core/pkg/sysctl"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
 	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr/version"
+
 	log "github.com/zoumo/logdog"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -36,7 +38,6 @@ import (
 	utildbus "k8s.io/kubernetes/pkg/util/dbus"
 	k8sexec "k8s.io/kubernetes/pkg/util/exec"
 	"k8s.io/kubernetes/pkg/util/iptables"
-	"k8s.io/kubernetes/pkg/util/sysctl"
 )
 
 const (
@@ -47,19 +48,19 @@ var _ core.Provider = &IpvsdrProvider{}
 
 var (
 	// sysctl changes required by keepalived
-	sysctlAdjustments = map[string]int{
+	sysctlAdjustments = map[string]string{
 		// allows processes to bind() to non-local IP addresses
-		"net/ipv4/ip_nonlocal_bind": 1,
+		"net.ipv4.ip_nonlocal_bind": "1",
 		// enable connection tracking for LVS connections
-		"net/ipv4/vs/conntrack": 1,
+		"net.ipv4.vs.conntrack": "1",
 		// Reply only if the target IP address is local address configured on the incoming interface.
-		"net/ipv4/conf/all/arp_ignore": 1,
+		"net.ipv4.conf.all.arp_ignore": "1",
 		// Always use the best local address for ARP requests sent on interface.
-		"net/ipv4/conf/all/arp_announce": 2,
+		"net.ipv4.conf.all.arp_announce": "2",
 		// Reply only if the target IP address is local address configured on the incoming interface.
-		"net/ipv4/conf/lo/arp_ignore": 1,
+		"net.ipv4.conf.lo.arp_ignore": "1",
 		// Always use the best local address for ARP requests sent on interface.
-		"net/ipv4/conf/lo/arp_announce": 2,
+		"net.ipv4.conf.lo.arp_announce": "2",
 	}
 
 	reservedTCPPorts = []string{"80", "443", "18080", "8181", "8282"}
@@ -72,7 +73,7 @@ type IpvsdrProvider struct {
 	reloadRateLimiter flowcontrol.RateLimiter
 	keepalived        *keepalived
 	storeLister       core.StoreLister
-	sysctlDefault     map[string]int
+	sysctlDefault     map[string]string
 	ipt               iptables.Interface
 	cfgMD5            string
 	vip               string
@@ -94,7 +95,7 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *netv1alpha1.LoadBalancer, unicast bool
 		nodeInfo:          nodeInfo,
 		reloadRateLimiter: flowcontrol.NewTokenBucketRateLimiter(10.0, 10),
 		vip:               lb.Spec.Providers.Ipvsdr.Vip,
-		sysctlDefault:     make(map[string]int, 0),
+		sysctlDefault:     make(map[string]string, 0),
 		ipt:               iptInterface,
 	}
 
