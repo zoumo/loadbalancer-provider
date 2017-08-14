@@ -143,7 +143,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Name = "provider-ipvsdr"
-	app.Version = "v0.1.0"
+	app.Version = version.RELEASE
 	app.Compiled = time.Now()
 
 	// add flags to app

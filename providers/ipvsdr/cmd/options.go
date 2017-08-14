@@ -16,66 +16,34 @@ limitations under the License.
 
 package main
 
-import cli "gopkg.in/urfave/cli.v1"
+import (
+	"github.com/caicloud/loadbalancer-provider/core/options"
+	cli "gopkg.in/urfave/cli.v1"
+)
 
 // Options contains controller options
 type Options struct {
-	Debug                 bool
-	Unicast               bool
-	Kubeconfig            string
-	LoadBalancerNamespace string
-	LoadBalancerName      string
-	PodNamespace          string
-	PodName               string
+	*options.Options
+	Unicast bool
 }
 
 // NewOptions reutrns a new Options
 func NewOptions() *Options {
-	return &Options{}
+	return &Options{
+		Options: &options.Options{},
+	}
 }
 
 // AddFlags add flags to app
 func (opts *Options) AddFlags(app *cli.App) {
 
+	opts.Options.AddFlags(app)
+
 	flags := []cli.Flag{
-		cli.StringFlag{
-			Name:        "kubeconfig",
-			Usage:       "Path to a kube config. Only required if out-of-cluster.",
-			Destination: &opts.Kubeconfig,
-		},
-		cli.BoolFlag{
-			Name:        "debug",
-			Usage:       "run with debug mode",
-			Destination: &opts.Debug,
-		},
 		cli.BoolTFlag{
 			Name:        "unicast",
 			Usage:       "use unicast instead of multicast for communication with other keepalived instances",
 			Destination: &opts.Unicast,
-		},
-		cli.StringFlag{
-			Name:        "loadbalancer-namespace",
-			EnvVar:      "LOADBALANCER_NAMESPACE",
-			Usage:       "specify loadbalancer resource namespace",
-			Destination: &opts.LoadBalancerNamespace,
-		},
-		cli.StringFlag{
-			Name:        "loadbalancer-name",
-			EnvVar:      "LOADBALANCER_NAME",
-			Usage:       "specify loadbalancer resource name",
-			Destination: &opts.LoadBalancerName,
-		},
-		cli.StringFlag{
-			Name:        "pod-namespace",
-			EnvVar:      "POD_NAMESPACE",
-			Usage:       "specify pod namespace",
-			Destination: &opts.PodNamespace,
-		},
-		cli.StringFlag{
-			Name:        "pod-name",
-			EnvVar:      "POD_NAME",
-			Usage:       "specify pod name",
-			Destination: &opts.PodName,
 		},
 	}
 
