@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/caicloud/loadbalancer-controller/pkg/tprclient"
+	corenode "github.com/caicloud/loadbalancer-provider/core/pkg/node"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
 	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr/provider"
 	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr/version"
@@ -92,7 +93,7 @@ func Run(opts *Options) error {
 		return fmt.Errorf("no ipvsdr spec specified")
 	}
 
-	nodeIP, err := getNodeIP(clientset, opts.PodName, opts.PodNamespace)
+	nodeIP, err := corenode.GetNodeIPForPod(clientset, opts.PodNamespace, opts.PodName)
 	if err != nil {
 		log.Fatal("Can not get node ip", log.Fields{"err": err})
 		return err
