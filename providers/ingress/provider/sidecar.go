@@ -27,6 +27,7 @@ var (
 	sysctlAdjustments = map[string]string{
 		// about time wait connection
 		// https://vincent.bernat.im/en/blog/2014-tcp-time-wait-state-linux
+		// http://perthcharles.github.io/2015/08/27/timestamp-NAT/
 		// deprecated: allow to reuse TIME-WAIT sockets for new connections when it is safe from protocol viewpoint
 		// "net.ipv4.tcp_tw_reuse": "1",
 		// deprecated: enable fast recycling of TIME-WAIT sockets
@@ -228,7 +229,7 @@ func (p *IngressSidecar) setIptablesNotrack(protocol string, ports []string) (bo
 	}
 	args = append(args, "-j", "NOTRACK")
 
-	return p.ipt.EnsureRule(iptables.Append, tableRaw, iptablesChain, args...)
+	return p.ipt.EnsureRule(iptables.Prepend, tableRaw, iptablesChain, args...)
 }
 
 func (p *IngressSidecar) ensureIptablesNotrack(tcpPorts, udpPorts []string) {
