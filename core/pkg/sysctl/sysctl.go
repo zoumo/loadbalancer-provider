@@ -53,5 +53,5 @@ func (s *procSysctl) SetSysctl(sysctl string, newVal string) error {
 }
 
 func sysctlPath(name string) string {
-	return path.Join(strings.Replace(name, ".", "/", -1))
+	return path.Join(sysctlBase, strings.Replace(name, ".", "/", -1))
 }
