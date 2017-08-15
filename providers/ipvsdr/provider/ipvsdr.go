@@ -26,6 +26,8 @@ import (
 	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
 	"github.com/caicloud/loadbalancer-controller/pkg/util/validation"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/arp"
+	corenet "github.com/caicloud/loadbalancer-provider/core/pkg/net"
+	corenode "github.com/caicloud/loadbalancer-provider/core/pkg/node"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/sysctl"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
 	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr/version"
@@ -33,7 +35,6 @@ import (
 	log "github.com/zoumo/logdog"
 
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/util/flowcontrol"
 	utildbus "k8s.io/kubernetes/pkg/util/dbus"
 	k8sexec "k8s.io/kubernetes/pkg/util/exec"
@@ -62,14 +63,11 @@ var (
 		// Always use the best local address for ARP requests sent on interface.
 		"net.ipv4.conf.lo.arp_announce": "2",
 	}
-
-	reservedTCPPorts = []string{"80", "443", "18080", "8181", "8282"}
-	reservedUDPPorts = []string{}
 )
 
 // IpvsdrProvider ...
 type IpvsdrProvider struct {
-	nodeInfo          *netInterface
+	nodeInfo          *corenet.Interface
 	reloadRateLimiter flowcontrol.RateLimiter
 	keepalived        *keepalived
 	storeLister       core.StoreLister
@@ -81,7 +79,7 @@ type IpvsdrProvider struct {
 
 // NewIpvsdrProvider creates a new ipvs-dr LoadBalancer Provider.
 func NewIpvsdrProvider(nodeIP net.IP, lb *netv1alpha1.LoadBalancer, unicast bool) (*IpvsdrProvider, error) {
-	nodeInfo, err := getNetworkInfo(nodeIP.String())
+	nodeInfo, err := corenet.InterfaceByIP(nodeIP.String())
 	if err != nil {
 		log.Error("get node info err", log.Fields{"err": err})
 		return nil, err
@@ -114,22 +112,6 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *netv1alpha1.LoadBalancer, unicast bool
 	return ipvs, nil
 }
 
-func (p *IpvsdrProvider) getExportedPorts(tcpcm, udpcm *v1.ConfigMap) ([]string, []string) {
-	tcpPorts := make([]string, 0)
-	udpPorts := make([]string, 0)
-	tcpPorts = append(tcpPorts, reservedTCPPorts...)
-	udpPorts = append(udpPorts, reservedUDPPorts...)
-
-	for port := range tcpcm.Data {
-		tcpPorts = append(tcpPorts, port)
-	}
-	for port := range udpcm.Data {
-		udpPorts = append(udpPorts, port)
-	}
-	return tcpPorts, udpPorts
-
-}
-
 // OnUpdate ...
 func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 	p.reloadRateLimiter.Accept()
@@ -155,7 +137,7 @@ func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 		return err
 	}
 
-	tcpPorts, udpPorts := p.getExportedPorts(tcpcm, udpcm)
+	tcpPorts, udpPorts := core.GetExportedPorts(tcpcm, udpcm)
 
 	log.Info("Updating config")
 
@@ -172,12 +154,12 @@ func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
 		RealServer: selectedNodes,
 	}
 
-	neighbors := p.resolveNeighbors(getNeighbors(p.nodeInfo.ip, selectedNodes))
+	neighbors := p.resolveNeighbors(getNeighbors(p.nodeInfo.IP, selectedNodes))
 
 	err = p.keepalived.UpdateConfig(
 		[]virtualServer{svc},
 		neighbors,
-		getNodePriority(p.nodeInfo.ip, selectedNodes),
+		getNodePriority(p.nodeInfo.IP, selectedNodes),
 		*lb.Status.ProvidersStatuses.Ipvsdr.Vrid,
 	)
 	if err != nil {
@@ -277,7 +259,7 @@ func (p *IpvsdrProvider) getNodesIP(names []string) []string {
 		if err != nil {
 			continue
 		}
-		ip, err := GetNodeHostIP(node)
+		ip, err := corenode.GetNodeHostIP(node)
 		if err != nil {
 			continue
 		}
@@ -318,31 +300,16 @@ func (p *IpvsdrProvider) deleteChain() {
 // changeSysctl changes the required network setting in /proc to get
 // keepalived working in the local system.
 func (p *IpvsdrProvider) changeSysctl() error {
-	sys := sysctl.New()
-	for k, v := range sysctlAdjustments {
-		defVar, err := sys.GetSysctl(k)
-		if err != nil {
-			return err
-		}
-		p.sysctlDefault[k] = defVar
-
-		if err := sys.SetSysctl(k, v); err != nil {
-			return err
-		}
-	}
-	return nil
+	var err error
+	p.sysctlDefault, err = sysctl.BulkModify(sysctlAdjustments)
+	return err
 }
 
 // resetSysctl resets the network setting
 func (p *IpvsdrProvider) resetSysctl() error {
 	log.Info("reset sysctl to original value", log.Fields{"defaults": p.sysctlDefault})
-	sys := sysctl.New()
-	for k, v := range p.sysctlDefault {
-		if err := sys.SetSysctl(k, v); err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err := sysctl.BulkModify(p.sysctlDefault)
+	return err
 }
 
 // setLoopbackVIP sets vip to dev lo
@@ -352,12 +319,12 @@ func (p *IpvsdrProvider) setLoopbackVIP() error {
 		return nil
 	}
 
-	lo, err := getLoopBackInfo()
+	lo, err := corenet.InterfaceByLoopback()
 	if err != nil {
 		return err
 	}
 
-	out, err := k8sexec.New().Command("ip", "addr", "add", p.vip+"/32", "dev", lo.name).CombinedOutput()
+	out, err := k8sexec.New().Command("ip", "addr", "add", p.vip+"/32", "dev", lo.Name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("set VIP %s to dev lo error: %v\n%s", p.vip, err, out)
 	}
@@ -372,12 +339,12 @@ func (p *IpvsdrProvider) removeLoopbackVIP() error {
 		return nil
 	}
 
-	lo, err := getLoopBackInfo()
+	lo, err := corenet.InterfaceByLoopback()
 	if err != nil {
 		return err
 	}
 
-	out, err := k8sexec.New().Command("ip", "addr", "del", p.vip+"/32", "dev", lo.name).CombinedOutput()
+	out, err := k8sexec.New().Command("ip", "addr", "del", p.vip+"/32", "dev", lo.Name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("removing configured VIP from dev lo error: %v\n%s", err, out)
 	}
@@ -388,7 +355,7 @@ func (p *IpvsdrProvider) resolveNeighbors(neighbors []string) []ipmac {
 	resolvedNeighbors := make([]ipmac, 0)
 
 	for _, neighbor := range neighbors {
-		hwAddr, err := arp.Resolve(p.nodeInfo.name, neighbor)
+		hwAddr, err := arp.Resolve(p.nodeInfo.Name, neighbor)
 		if err != nil {
 			log.Errorf("failed to resolve hardware address for %v", neighbor)
 			continue
@@ -400,7 +367,7 @@ func (p *IpvsdrProvider) resolveNeighbors(neighbors []string) []ipmac {
 
 func (p *IpvsdrProvider) setIptablesMark(protocol string, mark int, mac string, ports []string) (bool, error) {
 	args := make([]string, 0)
-	args = append(args, "-i", p.nodeInfo.name, "-d", p.vip, "-p", protocol)
+	args = append(args, "-i", p.nodeInfo.Name, "-d", p.vip, "-p", protocol)
 
 	if len(ports) > 0 {
 		args = append(args, "-m", "multiport", "--dports", strings.Join(ports, ","))

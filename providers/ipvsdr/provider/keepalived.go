@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"text/template"
 
+	corenet "github.com/caicloud/loadbalancer-provider/core/pkg/net"
 	log "github.com/zoumo/logdog"
 
 	k8sexec "k8s.io/kubernetes/pkg/util/exec"
@@ -54,7 +55,7 @@ type virtualServer struct {
 type keepalived struct {
 	started    bool
 	useUnicast bool
-	nodeInfo   *netInterface
+	nodeInfo   *corenet.Interface
 	ipt        iptables.Interface
 	cmd        *exec.Cmd
 	tmpl       *template.Template
@@ -75,9 +76,9 @@ func (k *keepalived) UpdateConfig(vss []virtualServer, neighbors []ipmac, priori
 
 	conf := make(map[string]interface{})
 	conf["iptablesChain"] = iptablesChain
-	conf["iface"] = k.nodeInfo.name
-	conf["myIP"] = k.nodeInfo.ip
-	conf["netmask"] = k.nodeInfo.netmask
+	conf["iface"] = k.nodeInfo.Name
+	conf["myIP"] = k.nodeInfo.IP
+	conf["netmask"] = k.nodeInfo.Netmask
 	conf["vss"] = vss
 	conf["vips"] = k.vips
 	conf["neighbors"] = neighbors
@@ -169,8 +170,8 @@ func (k *keepalived) Stop() {
 }
 
 func (k *keepalived) removeVIP(vip string) error {
-	log.Info("removing configured VIP %v from dev %v", vip, k.nodeInfo.name)
-	out, err := k8sexec.New().Command("ip", "addr", "del", vip+"/32", "dev", k.nodeInfo.name).CombinedOutput()
+	log.Info("removing configured VIP %v from dev %v", vip, k.nodeInfo.Name)
+	out, err := k8sexec.New().Command("ip", "addr", "del", vip+"/32", "dev", k.nodeInfo.Name).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error reloading keepalived: %v\n%s", err, out)
 	}
