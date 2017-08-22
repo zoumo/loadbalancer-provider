@@ -3,7 +3,7 @@ all: push
 
 RELEASE?=v0.2.0
 GOOS?=linux
-PREFIX?=cargo.caicloud.io/caicloud/loadbalancer-provider-ipvsdr
+PREFIX?=cargo.caicloudprivatetest.com/caicloud/loadbalancer-provider-ipvsdr
 
 PKG=github.com/caicloud/loadbalancer-provider/providers/ipvsdr
 REPO_INFO=$(shell git config --get remote.origin.url)

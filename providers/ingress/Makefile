@@ -1,9 +1,9 @@
 
 all: push
 
-RELEASE?=v0.2.0
+RELEASE?=v0.2.1
 GOOS?=linux
-PREFIX?=cargo.caicloud.io/caicloud/ingress-controller-sidecar
+PREFIX?=cargo.caicloudprivatetest.com/caicloud/ingress-controller-sidecar
 
 PKG=github.com/caicloud/loadbalancer-provider/providers/ingress
 REPO_INFO=$(shell git config --get remote.origin.url)
