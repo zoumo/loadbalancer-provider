@@ -2,11 +2,9 @@ package provider
 
 import (
 	"net"
-	"reflect"
 	"strings"
 
 	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
-	"github.com/caicloud/loadbalancer-controller/pkg/util/validation"
 	corenet "github.com/caicloud/loadbalancer-provider/core/pkg/net"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/sysctl"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
@@ -90,42 +88,41 @@ func NewIngressSidecar(nodeIP net.IP, lb *netv1alpha1.LoadBalancer) (*IngressSid
 
 // OnUpdate ...
 func (p *IngressSidecar) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
-	// p.reloadRateLimiter.Accept()
+	// FIX: issue #3
+	// if err := validation.ValidateLoadBalancer(lb); err != nil {
+	// 	log.Error("invalid loadbalancer", log.Fields{"err": err})
+	// 	return nil
+	// }
 
-	if err := validation.ValidateLoadBalancer(lb); err != nil {
-		log.Error("invalid loadbalancer", log.Fields{"err": err})
-		return nil
-	}
+	// // filtered
+	// if lb.Spec.Type != netv1alpha1.LoadBalancerTypeExternal || lb.Spec.Providers.Ipvsdr == nil {
+	// 	return nil
+	// }
 
-	// filtered
-	if lb.Spec.Type != netv1alpha1.LoadBalancerTypeExternal || lb.Spec.Providers.Ipvsdr == nil {
-		return nil
-	}
+	// tcpcm, err := p.storeLister.ConfigMap.ConfigMaps(lb.Namespace).Get(lb.Status.ProxyStatus.TCPConfigMap)
+	// if err != nil {
+	// 	log.Error("can not find tcp configmap for loadbalancer")
+	// 	return err
+	// }
+	// udpcm, err := p.storeLister.ConfigMap.ConfigMaps(lb.Namespace).Get(lb.Status.ProxyStatus.UDPConfigMap)
+	// if err != nil {
+	// 	log.Error("can not find udp configmap for loadbalancer")
+	// 	return err
+	// }
 
-	tcpcm, err := p.storeLister.ConfigMap.ConfigMaps(lb.Namespace).Get(lb.Status.ProxyStatus.TCPConfigMap)
-	if err != nil {
-		log.Error("can not find tcp configmap for loadbalancer")
-		return err
-	}
-	udpcm, err := p.storeLister.ConfigMap.ConfigMaps(lb.Namespace).Get(lb.Status.ProxyStatus.UDPConfigMap)
-	if err != nil {
-		log.Error("can not find udp configmap for loadbalancer")
-		return err
-	}
+	// tcpPorts, udpPorts := core.GetExportedPorts(tcpcm, udpcm)
 
-	tcpPorts, udpPorts := core.GetExportedPorts(tcpcm, udpcm)
+	// if reflect.DeepEqual(p.tcpPorts, tcpPorts) && reflect.DeepEqual(p.udpPorts, udpPorts) {
+	// 	// no change
+	// 	return nil
+	// }
 
-	if reflect.DeepEqual(p.tcpPorts, tcpPorts) && reflect.DeepEqual(p.udpPorts, udpPorts) {
-		// no change
-		return nil
-	}
+	// log.Info("Updating config")
 
-	log.Info("Updating config")
+	// p.tcpPorts = tcpPorts
+	// p.udpPorts = udpPorts
 
-	p.tcpPorts = tcpPorts
-	p.udpPorts = udpPorts
-
-	p.ensureIptablesNotrack(tcpPorts, udpPorts)
+	// p.ensureIptablesNotrack(tcpPorts, udpPorts)
 
 	return nil
 }
@@ -135,7 +132,7 @@ func (p *IngressSidecar) Start() {
 	log.Info("Startting ingress sidecar provider")
 
 	p.changeSysctl()
-	p.ensureChain()
+	// p.ensureChain()
 	return
 }
 
@@ -153,7 +150,7 @@ func (p *IngressSidecar) Stop() error {
 		log.Error("reset sysctl error", log.Fields{"err": err})
 	}
 
-	p.deleteChain()
+	// p.deleteChain()
 
 	return nil
 }
