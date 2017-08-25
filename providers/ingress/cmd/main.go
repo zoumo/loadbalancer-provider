@@ -28,8 +28,8 @@ import (
 	"github.com/caicloud/loadbalancer-controller/pkg/tprclient"
 	corenode "github.com/caicloud/loadbalancer-provider/core/pkg/node"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
-	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr/provider"
-	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr/version"
+	"github.com/caicloud/loadbalancer-provider/providers/ingress/provider"
+	"github.com/caicloud/loadbalancer-provider/providers/ingress/version"
 	log "github.com/zoumo/logdog"
 	"gopkg.in/urfave/cli.v1"
 
@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// Run ...
 func Run(opts *Options) error {
 	log.Info("Provider Build Information", log.Fields{
 		"release": version.RELEASE,
@@ -83,44 +84,28 @@ func Run(opts *Options) error {
 		return err
 	}
 
-	lb, err := tprclientset.NetworkingV1alpha1().LoadBalancers(opts.LoadBalancerNamespace).Get(opts.LoadBalancerName, metav1.GetOptions{})
-	if err != nil {
-		log.Fatal("Can not find loadbalancer resource", log.Fields{"lb.ns": opts.LoadBalancerNamespace, "lb.name": opts.LoadBalancerName})
-		return err
-	}
-
-	if lb.Spec.Providers.Ipvsdr == nil {
-		return fmt.Errorf("no ipvsdr spec specified")
-	}
-
+	// get node ip
 	nodeIP, err := corenode.GetNodeIPForPod(clientset, opts.PodNamespace, opts.PodName)
 	if err != nil {
 		log.Fatal("Can not get node ip", log.Fields{"err": err})
 		return err
 	}
 
-	err = loadIPVSModule()
+	lb, err := tprclientset.NetworkingV1alpha1().LoadBalancers(opts.LoadBalancerNamespace).Get(opts.LoadBalancerName, metav1.GetOptions{})
 	if err != nil {
-		log.Error("load ipvs module error", log.Fields{"err": err})
+		log.Fatal("Can not find loadbalancer resource", log.Fields{"lb.ns": opts.LoadBalancerNamespace, "lb.name": opts.LoadBalancerName})
 		return err
 	}
 
-	err = resetIPVS()
+	sidecar, err := provider.NewIngressSidecar(nodeIP, lb)
 	if err != nil {
-		log.Error("reset ipvsd error", log.Fields{"err": err})
-		return err
-	}
-
-	ipvsdr, err := provider.NewIpvsdrProvider(nodeIP, lb, opts.Unicast)
-	if err != nil {
-		log.Error("Create ipvsdr provider error", log.Fields{"err": err})
 		return err
 	}
 
 	lp := core.NewLoadBalancerProvider(&core.Configuration{
 		KubeClient:            clientset,
 		TPRClient:             tprclientset,
-		Backend:               ipvsdr,
+		Backend:               sidecar,
 		LoadBalancerName:      opts.LoadBalancerName,
 		LoadBalancerNamespace: opts.LoadBalancerNamespace,
 		TCPConfigMap:          lb.Status.ProxyStatus.TCPConfigMap,
@@ -143,7 +128,7 @@ func main() {
 	flag.CommandLine.Parse([]string{})
 
 	app := cli.NewApp()
-	app.Name = "provider-ipvsdr"
+	app.Name = "ingress sidecar"
 	app.Version = version.RELEASE
 	app.Compiled = time.Now()
 

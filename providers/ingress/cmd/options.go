@@ -17,32 +17,23 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
-	"os"
-
-	log "github.com/zoumo/logdog"
-
-	k8sexec "k8s.io/kubernetes/pkg/util/exec"
+	"github.com/caicloud/loadbalancer-provider/core/options"
+	cli "gopkg.in/urfave/cli.v1"
 )
 
-// loadIPVSModule load module require to use keepalived
-func loadIPVSModule() error {
-	out, err := k8sexec.New().Command("modprobe", "ip_vs").CombinedOutput()
-	if err != nil {
-		log.Infof("Error loading ip_vip: %s, %v", string(out), err)
-		return err
-	}
-
-	_, err = os.Stat("/proc/net/ip_vs")
-	return err
+// Options contains controller options
+type Options struct {
+	*options.Options
 }
 
-func resetIPVS() error {
-	log.Info("cleaning ipvs configuration")
-	_, err := k8sexec.New().Command("ipvsadm", "-C").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error removing ipvs configuration: %v", err)
+// NewOptions reutrns a new Options
+func NewOptions() *Options {
+	return &Options{
+		Options: &options.Options{},
 	}
+}
 
-	return nil
+// AddFlags add flags to app
+func (opts *Options) AddFlags(app *cli.App) {
+	opts.Options.AddFlags(app)
 }

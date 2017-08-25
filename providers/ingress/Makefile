@@ -1,27 +1,29 @@
 
 all: push
 
-RELEASE?=v0.2.0
+RELEASE?=v0.2.1
 GOOS?=linux
-PREFIX?=cargo.caicloudprivatetest.com/caicloud/loadbalancer-provider-ipvsdr
+PREFIX?=cargo.caicloudprivatetest.com/caicloud/ingress-controller-sidecar
 
-PKG=github.com/caicloud/loadbalancer-provider/providers/ipvsdr
+PKG=github.com/caicloud/loadbalancer-provider/providers/ingress
 REPO_INFO=$(shell git config --get remote.origin.url)
 
 ifndef COMMIT
   COMMIT := git-$(shell git rev-parse --short HEAD)
 endif
 
+target=ingress-controller-sidecar
+
 test:
 	go list ./... | grep -v '/vendor/' | grep -v '/tests/' | xargs go test 
 
 build: clean test
-	GOOS=${GOOS} go build -i -v -o ipvsdr-provider \
+	GOOS=${GOOS} go build -i -v -o ${target} \
 	-ldflags "-s -w -X ${PKG}/version.RELEASE=${RELEASE} -X ${PKG}/version.COMMIT=${COMMIT} -X ${PKG}/version.REPO=${REPO_INFO}" \
 	${PKG}/cmd
 
 debug: clean
-	go build -i -v -o ipvsdr-provider \
+	go build -i -v -o ${target} \
 	-ldflags "-s -w -X ${PKG}/version.RELEASE=${RELEASE} -X ${PKG}/version.COMMIT=${COMMIT} -X ${PKG}/version.REPO=${REPO_INFO}" \
 	${PKG}/cmd
 
@@ -32,4 +34,4 @@ push: image
 	docker push $(PREFIX):$(RELEASE)
 
 clean:
-	rm -f ipvsdr-provider
+	rm -f ${target}
