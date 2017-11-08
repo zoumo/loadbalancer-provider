@@ -20,7 +20,7 @@ import "k8s.io/client-go/pkg/api/v1"
 
 var (
 	// ReservedTCPPorts represents the reserved tcp ports
-	ReservedTCPPorts = []string{"80", "443", "18080", "8181", "8282"}
+	ReservedTCPPorts = []string{"80", "443", "450", "451"}
 	// ReservedUDPPorts represents the reserved udp ports
 	ReservedUDPPorts = []string{}
 )
