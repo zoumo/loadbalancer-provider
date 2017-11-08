@@ -1,7 +1,7 @@
 
 all: push
 
-RELEASE?=v0.2.0
+RELEASE?=v0.3.0
 GOOS?=linux
 PREFIX?=cargo.caicloudprivatetest.com/caicloud/loadbalancer-provider-ipvsdr
 
