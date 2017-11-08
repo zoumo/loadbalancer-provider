@@ -11,14 +11,9 @@ import (
 )
 
 const (
-	// ProtocolAoE specifies the ATA over Ethernet protocol (AoEr11).
-	ProtocolAoE Protocol = 0x88a2
-
-	// ProtocolARP specifies the Address Resolution Protocol (RFC 826).
-	ProtocolARP Protocol = 0x0806
-
-	// ProtocolWoL specifies the Wake-on-LAN protocol.
-	ProtocolWoL Protocol = 0x0842
+	// Maximum read timeout per syscall.
+	// It is required because read/recvfrom won't be interrupted on closing of the file descriptor.
+	readTimeout = 200 * time.Millisecond
 )
 
 var (
@@ -90,23 +85,27 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 	return c.p.SetWriteDeadline(t)
 }
 
+var _ bpf.Setter = &Conn{}
+
 // SetBPF attaches an assembled BPF program to the connection.
 func (c *Conn) SetBPF(filter []bpf.RawInstruction) error {
 	return c.p.SetBPF(filter)
 }
 
-// A Protocol is a network protocol constant which identifies the type of
-// traffic a raw socket should send and receive.
-type Protocol uint16
+// SetPromiscuous enables or disables promiscuous mode on the interface, allowing it
+// to receive traffic that is not addressed to the interface.
+func (c *Conn) SetPromiscuous(b bool) error {
+	return c.p.SetPromiscuous(b)
+}
 
 // ListenPacket creates a net.PacketConn which can be used to send and receive
 // data at the network interface device driver level.
 //
 // ifi specifies the network interface which will be used to send and receive
-// data.  proto specifies the protocol which should be captured and
-// transmitted.  proto, if needed, is automatically converted to network byte
-// order (big endian), akin to the htons() function in C.
-func ListenPacket(ifi *net.Interface, proto Protocol) (*Conn, error) {
+// data.  proto specifies the protocol (usually the EtherType) which should be
+// captured and transmitted.  proto, if needed, is automatically converted to
+// network byte order (big endian), akin to the htons() function in C.
+func ListenPacket(ifi *net.Interface, proto uint16) (*Conn, error) {
 	p, err := listenPacket(ifi, proto)
 	if err != nil {
 		return nil, err
