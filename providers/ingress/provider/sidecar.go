@@ -20,7 +20,7 @@ import (
 	"net"
 	"strings"
 
-	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
+	lbapi "github.com/caicloud/clientset/pkg/apis/loadbalance/v1alpha2"
 	corenet "github.com/caicloud/loadbalancer-provider/core/pkg/net"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/sysctl"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
@@ -83,7 +83,7 @@ type IngressSidecar struct {
 }
 
 // NewIngressSidecar creates a new ingress sidecar
-func NewIngressSidecar(nodeIP net.IP, lb *netv1alpha1.LoadBalancer) (*IngressSidecar, error) {
+func NewIngressSidecar(nodeIP net.IP, lb *lbapi.LoadBalancer) (*IngressSidecar, error) {
 	nodeInfo, err := corenet.InterfaceByIP(nodeIP.String())
 	if err != nil {
 		log.Error("get node info err", log.Fields{"err": err})
@@ -103,15 +103,15 @@ func NewIngressSidecar(nodeIP net.IP, lb *netv1alpha1.LoadBalancer) (*IngressSid
 }
 
 // OnUpdate ...
-func (p *IngressSidecar) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
+func (p *IngressSidecar) OnUpdate(lb *lbapi.LoadBalancer) error {
 	// FIX: issue #3
-	// if err := validation.ValidateLoadBalancer(lb); err != nil {
+	// if err := lbapi.ValidateLoadBalancer(lb); err != nil {
 	// 	log.Error("invalid loadbalancer", log.Fields{"err": err})
 	// 	return nil
 	// }
 
 	// // filtered
-	// if lb.Spec.Type != netv1alpha1.LoadBalancerTypeExternal || lb.Spec.Providers.Ipvsdr == nil {
+	// if lb.Spec.Type != lbapi.LoadBalancerTypeExternal || lb.Spec.Providers.Ipvsdr == nil {
 	// 	return nil
 	// }
 

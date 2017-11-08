@@ -23,28 +23,24 @@ import (
 
 	log "github.com/zoumo/logdog"
 
-	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
-	"github.com/caicloud/loadbalancer-controller/pkg/informers"
-	netlisters "github.com/caicloud/loadbalancer-controller/pkg/listers/networking/v1alpha1"
-	controllerutil "github.com/caicloud/loadbalancer-controller/pkg/util/controller"
-	"github.com/caicloud/loadbalancer-controller/pkg/util/validation"
+	"github.com/caicloud/clientset/informers"
+	lblisters "github.com/caicloud/clientset/listers/loadbalance/v1alpha2"
+	lbapi "github.com/caicloud/clientset/pkg/apis/loadbalance/v1alpha2"
+	"github.com/caicloud/clientset/util/syncqueue"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 )
 
 // GenericProvider holds the boilerplate code required to build an LoadBalancer Provider.
 type GenericProvider struct {
 	cfg *Configuration
 
-	queue    workqueue.RateLimitingInterface
 	factory  informers.SharedInformerFactory
-	lbLister netlisters.LoadBalancerLister
-
-	helper *controllerutil.Helper
+	lbLister lblisters.LoadBalancerLister
+	queue    *syncqueue.SyncQueue
 
 	// stopLock is used to enforce only a single call to Stop is active.
 	// Needed because we allow stopping through an http endpoint and
@@ -59,13 +55,12 @@ func NewLoadBalancerProvider(cfg *Configuration) *GenericProvider {
 
 	gp := &GenericProvider{
 		cfg:      cfg,
-		factory:  informers.NewSharedInformerFactory(cfg.KubeClient, cfg.TPRClient, 0),
-		queue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "loadbalancer"),
+		factory:  informers.NewSharedInformerFactory(cfg.KubeClient, 0),
 		stopLock: &sync.Mutex{},
 		stopCh:   make(chan struct{}),
 	}
 
-	lbinformer := gp.factory.Networking().V1alpha1().LoadBalancer()
+	lbinformer := gp.factory.Loadbalance().V1alpha2().LoadBalancers()
 	cminformer := gp.factory.Core().V1().ConfigMaps()
 	lbinformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    gp.addLoadBalancer,
@@ -86,7 +81,7 @@ func NewLoadBalancerProvider(cfg *Configuration) *GenericProvider {
 		ConfigMap:    cminformer.Lister(),
 	})
 
-	gp.helper = controllerutil.NewHelper(&netv1alpha1.LoadBalancer{}, gp.queue, gp.syncLoadBalancer)
+	gp.queue = syncqueue.NewSyncQueue(&lbapi.LoadBalancer{}, gp.syncLoadBalancer)
 	gp.lbLister = lbinformer.Lister()
 
 	return gp
@@ -118,7 +113,7 @@ func (p *GenericProvider) Start() {
 	}
 
 	// start worker
-	p.helper.Run(1, p.stopCh)
+	p.queue.Run(1)
 
 	<-p.stopCh
 
@@ -139,7 +134,7 @@ func (p *GenericProvider) Stop() error {
 		p.cfg.Backend.Stop()
 		// stop syncing
 		log.Info("shutting down controller queue")
-		p.helper.ShutDown()
+		p.queue.ShutDown()
 		return nil
 	}
 
@@ -147,17 +142,17 @@ func (p *GenericProvider) Stop() error {
 }
 
 func (p *GenericProvider) addLoadBalancer(obj interface{}) {
-	lb := obj.(*netv1alpha1.LoadBalancer)
+	lb := obj.(*lbapi.LoadBalancer)
 	if p.filterLoadBalancer(lb) {
 		return
 	}
 	log.Info("Adding LoadBalancer ")
-	p.helper.Enqueue(lb)
+	p.queue.Enqueue(lb)
 }
 
 func (p *GenericProvider) updateLoadBalancer(oldObj, curObj interface{}) {
-	old := oldObj.(*netv1alpha1.LoadBalancer)
-	cur := curObj.(*netv1alpha1.LoadBalancer)
+	old := oldObj.(*lbapi.LoadBalancer)
+	cur := curObj.(*lbapi.LoadBalancer)
 
 	if old.ResourceVersion == cur.ResourceVersion {
 		// Periodic resync will send update events for all known LoadBalancer.
@@ -170,12 +165,12 @@ func (p *GenericProvider) updateLoadBalancer(oldObj, curObj interface{}) {
 	}
 	log.Info("Updating LoadBalancer")
 
-	p.helper.Enqueue(cur)
+	p.queue.Enqueue(cur)
 
 }
 
 func (p *GenericProvider) deleteLoadBalancer(obj interface{}) {
-	lb, ok := obj.(*netv1alpha1.LoadBalancer)
+	lb, ok := obj.(*lbapi.LoadBalancer)
 
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -183,7 +178,7 @@ func (p *GenericProvider) deleteLoadBalancer(obj interface{}) {
 			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 			return
 		}
-		lb, ok = tombstone.Obj.(*netv1alpha1.LoadBalancer)
+		lb, ok = tombstone.Obj.(*lbapi.LoadBalancer)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a LoadBalancer %#v", obj))
 			return
@@ -196,7 +191,7 @@ func (p *GenericProvider) deleteLoadBalancer(obj interface{}) {
 
 	log.Info("Deleting LoadBalancer")
 
-	p.helper.Enqueue(lb)
+	p.queue.Enqueue(lb)
 }
 
 func (p *GenericProvider) updateConfigMap(oldObj, curObj interface{}) {
@@ -219,11 +214,11 @@ func (p *GenericProvider) updateConfigMap(oldObj, curObj interface{}) {
 		return
 	}
 
-	p.helper.Enqueue(cache.ExplicitKey(p.cfg.LoadBalancerNamespace + "/" + p.cfg.LoadBalancerName))
+	p.queue.Enqueue(cache.ExplicitKey(p.cfg.LoadBalancerNamespace + "/" + p.cfg.LoadBalancerName))
 
 }
 
-func (p *GenericProvider) filterLoadBalancer(lb *netv1alpha1.LoadBalancer) bool {
+func (p *GenericProvider) filterLoadBalancer(lb *lbapi.LoadBalancer) bool {
 	if lb.Namespace == p.cfg.LoadBalancerNamespace && lb.Name == p.cfg.LoadBalancerName {
 		return false
 	}
@@ -257,7 +252,7 @@ func (p *GenericProvider) syncLoadBalancer(obj interface{}) error {
 		return err
 	}
 
-	if err := validation.ValidateLoadBalancer(lb); err != nil {
+	if err := lbapi.ValidateLoadBalancer(lb); err != nil {
 		log.Debug("invalid loadbalancer scheme", log.Fields{"err": err})
 		return err
 	}
