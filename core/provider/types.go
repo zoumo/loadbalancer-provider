@@ -17,10 +17,9 @@ limitations under the License.
 package provider
 
 import (
-	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
-	netlisters "github.com/caicloud/loadbalancer-controller/pkg/listers/networking/v1alpha1"
-	"github.com/caicloud/loadbalancer-controller/pkg/tprclient"
-	"k8s.io/client-go/kubernetes"
+	"github.com/caicloud/clientset/kubernetes"
+	lblisters "github.com/caicloud/clientset/listers/loadbalance/v1alpha2"
+	lbapi "github.com/caicloud/clientset/pkg/apis/loadbalance/v1alpha2"
 	v1listers "k8s.io/client-go/listers/core/v1"
 )
 
@@ -32,7 +31,7 @@ type Provider interface {
 	// This avoid the use of the kubernetes client.
 	SetListers(StoreLister)
 	// OnUpdate callback invoked when loadbalancer changed
-	OnUpdate(*netv1alpha1.LoadBalancer) error
+	OnUpdate(*lbapi.LoadBalancer) error
 	// Start starts the loadbalancer provider
 	Start()
 	// WaitForStart waits for provider fully run
@@ -57,7 +56,7 @@ type Info struct {
 
 // StoreLister returns the configured store for loadbalancers, nodes
 type StoreLister struct {
-	LoadBalancer netlisters.LoadBalancerLister
+	LoadBalancer lblisters.LoadBalancerLister
 	Node         v1listers.NodeLister
 	ConfigMap    v1listers.ConfigMapLister
 }
@@ -65,7 +64,6 @@ type StoreLister struct {
 // Configuration contains all the settings required by an LoadBalancer controller
 type Configuration struct {
 	KubeClient            kubernetes.Interface
-	TPRClient             tprclient.Interface
 	Backend               Provider
 	LoadBalancerName      string
 	LoadBalancerNamespace string

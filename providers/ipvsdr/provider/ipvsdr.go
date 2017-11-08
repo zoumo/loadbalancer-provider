@@ -23,8 +23,7 @@ import (
 	"strings"
 	"time"
 
-	netv1alpha1 "github.com/caicloud/loadbalancer-controller/pkg/apis/networking/v1alpha1"
-	"github.com/caicloud/loadbalancer-controller/pkg/util/validation"
+	lbapi "github.com/caicloud/clientset/pkg/apis/loadbalance/v1alpha2"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/arp"
 	corenet "github.com/caicloud/loadbalancer-provider/core/pkg/net"
 	corenode "github.com/caicloud/loadbalancer-provider/core/pkg/node"
@@ -78,7 +77,7 @@ type IpvsdrProvider struct {
 }
 
 // NewIpvsdrProvider creates a new ipvs-dr LoadBalancer Provider.
-func NewIpvsdrProvider(nodeIP net.IP, lb *netv1alpha1.LoadBalancer, unicast bool) (*IpvsdrProvider, error) {
+func NewIpvsdrProvider(nodeIP net.IP, lb *lbapi.LoadBalancer, unicast bool) (*IpvsdrProvider, error) {
 	nodeInfo, err := corenet.InterfaceByIP(nodeIP.String())
 	if err != nil {
 		log.Error("get node info err", log.Fields{"err": err})
@@ -113,16 +112,16 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *netv1alpha1.LoadBalancer, unicast bool
 }
 
 // OnUpdate ...
-func (p *IpvsdrProvider) OnUpdate(lb *netv1alpha1.LoadBalancer) error {
+func (p *IpvsdrProvider) OnUpdate(lb *lbapi.LoadBalancer) error {
 	p.reloadRateLimiter.Accept()
 
-	if err := validation.ValidateLoadBalancer(lb); err != nil {
+	if err := lbapi.ValidateLoadBalancer(lb); err != nil {
 		log.Error("invalid loadbalancer", log.Fields{"err": err})
 		return nil
 	}
 
 	// filtered
-	if lb.Spec.Type != netv1alpha1.LoadBalancerTypeExternal || lb.Spec.Providers.Ipvsdr == nil {
+	if lb.Spec.Type != lbapi.LoadBalancerTypeExternal || lb.Spec.Providers.Ipvsdr == nil {
 		return nil
 	}
 

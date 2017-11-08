@@ -25,7 +25,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/caicloud/loadbalancer-controller/pkg/tprclient"
+	"github.com/caicloud/clientset/kubernetes"
 	corenode "github.com/caicloud/loadbalancer-provider/core/pkg/node"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
 	"github.com/caicloud/loadbalancer-provider/providers/ingress/provider"
@@ -35,7 +35,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -77,13 +76,6 @@ func Run(opts *Options) error {
 		return err
 	}
 
-	// create tpr clientset
-	tprclientset, err := tprclient.NewForConfig(config)
-	if err != nil {
-		log.Fatal("Create tpr client error", log.Fields{"err": err})
-		return err
-	}
-
 	// get node ip
 	nodeIP, err := corenode.GetNodeIPForPod(clientset, opts.PodNamespace, opts.PodName)
 	if err != nil {
@@ -91,7 +83,7 @@ func Run(opts *Options) error {
 		return err
 	}
 
-	lb, err := tprclientset.NetworkingV1alpha1().LoadBalancers(opts.LoadBalancerNamespace).Get(opts.LoadBalancerName, metav1.GetOptions{})
+	lb, err := clientset.LoadbalanceV1alpha2().LoadBalancers(opts.LoadBalancerNamespace).Get(opts.LoadBalancerName, metav1.GetOptions{})
 	if err != nil {
 		log.Fatal("Can not find loadbalancer resource", log.Fields{"lb.ns": opts.LoadBalancerNamespace, "lb.name": opts.LoadBalancerName})
 		return err
@@ -104,7 +96,6 @@ func Run(opts *Options) error {
 
 	lp := core.NewLoadBalancerProvider(&core.Configuration{
 		KubeClient:            clientset,
-		TPRClient:             tprclientset,
 		Backend:               sidecar,
 		LoadBalancerName:      opts.LoadBalancerName,
 		LoadBalancerNamespace: opts.LoadBalancerNamespace,
