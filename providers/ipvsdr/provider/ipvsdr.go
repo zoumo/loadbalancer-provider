@@ -121,7 +121,7 @@ func (p *IpvsdrProvider) OnUpdate(lb *lbapi.LoadBalancer) error {
 	}
 
 	// filtered
-	if lb.Spec.Type != lbapi.LoadBalancerTypeExternal || lb.Spec.Providers.Ipvsdr == nil {
+	if lb.Spec.Providers.Ipvsdr == nil {
 		return nil
 	}
 
