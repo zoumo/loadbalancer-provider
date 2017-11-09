@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	storagev1 "k8s.io/client-go/pkg/apis/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -140,7 +139,20 @@ const (
 // StorageClass are non-namespaced; the name of the storage class
 // according to etcd is in ObjectMeta.Name.
 type StorageClass struct {
-	storagev1.StorageClass
+	metav1.TypeMeta `json:",inline"`
+	// Standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Provisioner indicates the type of the provisioner.
+	Provisioner string `json:"provisioner" protobuf:"bytes,2,opt,name=provisioner"`
+
+	// Parameters holds the parameters for the provisioner that should
+	// create volumes of this storage class.
+	// +optional
+	Parameters map[string]string `json:"parameters,omitempty" protobuf:"bytes,3,rep,name=parameters"`
+
 	// Status describes the current status of a StorageClass.
 	// +optional
 	Status StorageClassStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`

@@ -23,7 +23,7 @@
   branch = "master"
   name = "github.com/caicloud/clientset"
   packages = ["informers","informers/apiextensions","informers/apiextensions/v1beta1","informers/config","informers/config/v1alpha1","informers/loadbalance","informers/loadbalance/v1alpha2","informers/release","informers/release/v1alpha1","informers/resource","informers/resource/v1alpha1","kubernetes","kubernetes/scheme","kubernetes/typed/apiextensions/v1beta1","kubernetes/typed/config/v1alpha1","kubernetes/typed/loadbalance/v1alpha2","kubernetes/typed/release/v1alpha1","kubernetes/typed/resource/v1alpha1","listers/apiextensions/v1beta1","listers/config/v1alpha1","listers/loadbalance/v1alpha2","listers/release/v1alpha1","listers/resource/v1alpha1","pkg/apis/apiextensions/v1beta1","pkg/apis/config/v1alpha1","pkg/apis/loadbalance/v1alpha2","pkg/apis/release/v1alpha1","pkg/apis/resource/v1alpha1","util/syncqueue"]
-  revision = "be804d2ad3099762d5a1fb4c021db4304aa96fc6"
+  revision = "a5090530f8b2e28904667044b58a633c6a9e2252"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -170,10 +170,9 @@
   revision = "e72cf8343052938936194daba1914fd1bb33d2fe"
 
 [[projects]]
-  branch = "master"
   name = "github.com/mdlayher/raw"
   packages = ["."]
-  revision = "8bb4b2ce1ce9f98d11e5a618b3fb321e37769493"
+  revision = "140ca93cb1bb2d19be9453ed538f320898a6f02f"
 
 [[projects]]
   branch = "master"
@@ -220,7 +219,7 @@
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
-  revision = "687d4b818545e443c8ba223cbef20b1721afd4db"
+  revision = "6a293f2d4b14b8e6d3f0539e383f6d0d30fce3fd"
 
 [[projects]]
   branch = "master"
@@ -232,7 +231,7 @@
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix","windows"]
-  revision = "75813c647272dd855bda156405bf844a5414f5bf"
+  revision = "4b45465282a4624cf39876842a017334f13b8aff"
 
 [[projects]]
   branch = "master"
@@ -291,6 +290,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e06ca21eaf09288e191caa1dea354a69ea1e197ed7295dce3c79a072600f7695"
+  inputs-digest = "c8f189f72b5599d8b6839b68f916fdc7986b7c42d9b6fd43f93f58cd776eb62a"
   solver-name = "gps-cdcl"
   solver-version = 1
