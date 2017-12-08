@@ -28,8 +28,8 @@ import (
 	"github.com/caicloud/clientset/kubernetes"
 	corenode "github.com/caicloud/loadbalancer-provider/core/pkg/node"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
-	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr/provider"
-	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr/version"
+	"github.com/caicloud/loadbalancer-provider/pkg/version"
+	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr"
 	log "github.com/zoumo/logdog"
 	"gopkg.in/urfave/cli.v1"
 
@@ -104,7 +104,7 @@ func Run(opts *Options) error {
 		return err
 	}
 
-	ipvsdr, err := provider.NewIpvsdrProvider(nodeIP, lb, opts.Unicast)
+	ipvsdr, err := ipvsdr.NewIpvsdrProvider(nodeIP, lb, opts.Unicast)
 	if err != nil {
 		log.Error("Create ipvsdr provider error", log.Fields{"err": err})
 		return err

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package ipvsdr
 
 import (
 	"html/template"
@@ -25,7 +25,7 @@ import (
 )
 
 func TestTemplate(t *testing.T) {
-	tmpl, _ := template.ParseFiles("../keepalived.tmpl")
+	tmpl, _ := template.ParseFiles("../../build/ipvsdr/keepalived.tmpl")
 	conf := make(map[string]interface{})
 
 	conf["iptablesChain"] = iptablesChain

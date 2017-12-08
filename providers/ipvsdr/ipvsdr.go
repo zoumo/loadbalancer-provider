@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package ipvsdr
 
 import (
 	"fmt"
@@ -29,7 +29,7 @@ import (
 	corenode "github.com/caicloud/loadbalancer-provider/core/pkg/node"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/sysctl"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
-	"github.com/caicloud/loadbalancer-provider/providers/ipvsdr/version"
+	"github.com/caicloud/loadbalancer-provider/pkg/version"
 
 	log "github.com/zoumo/logdog"
 

@@ -28,8 +28,8 @@ import (
 	"github.com/caicloud/clientset/kubernetes"
 	corenode "github.com/caicloud/loadbalancer-provider/core/pkg/node"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
-	"github.com/caicloud/loadbalancer-provider/providers/ingress/provider"
-	"github.com/caicloud/loadbalancer-provider/providers/ingress/version"
+	"github.com/caicloud/loadbalancer-provider/pkg/version"
+	"github.com/caicloud/loadbalancer-provider/providers/ingress"
 	log "github.com/zoumo/logdog"
 	"gopkg.in/urfave/cli.v1"
 
@@ -89,7 +89,7 @@ func Run(opts *Options) error {
 		return err
 	}
 
-	sidecar, err := provider.NewIngressSidecar(nodeIP, lb)
+	sidecar, err := ingress.NewIngressSidecar(nodeIP, lb)
 	if err != nil {
 		return err
 	}

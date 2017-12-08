@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package provider
+package ingress
 
 import (
 	"net"
@@ -24,9 +24,9 @@ import (
 	corenet "github.com/caicloud/loadbalancer-provider/core/pkg/net"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/sysctl"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
+	"github.com/caicloud/loadbalancer-provider/pkg/version"
 	log "github.com/zoumo/logdog"
 
-	"k8s.io/ingress/controllers/nginx/pkg/version"
 	utildbus "k8s.io/kubernetes/pkg/util/dbus"
 	k8sexec "k8s.io/kubernetes/pkg/util/exec"
 	"k8s.io/kubernetes/pkg/util/iptables"
