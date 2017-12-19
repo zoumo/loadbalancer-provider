@@ -40,11 +40,8 @@ import (
 
 // Run ...
 func Run(opts *Options) error {
-	log.Info("Provider Build Information", log.Fields{
-		"release": version.RELEASE,
-		"commit":  version.COMMIT,
-		"repo":    version.REPO,
-	})
+	info := version.Get()
+	log.Infof("Provider Build Information %v", info.Pretty())
 
 	log.Info("Provider Running with", log.Fields{
 		"debug":     opts.Debug,
@@ -120,7 +117,6 @@ func main() {
 
 	app := cli.NewApp()
 	app.Name = "ingress sidecar"
-	app.Version = version.RELEASE
 	app.Compiled = time.Now()
 
 	// add flags to app

@@ -173,11 +173,12 @@ func (p *IngressSidecar) Stop() error {
 
 // Info ...
 func (p *IngressSidecar) Info() core.Info {
+	info := version.Get()
 	return core.Info{
-		Name:       "ingress-sidecar",
-		Release:    version.RELEASE,
-		Build:      version.COMMIT,
-		Repository: version.REPO,
+		Name:      "ingress-sidecar",
+		Version:   info.Version,
+		GitCommit: info.GitCommit,
+		GitRemote: info.GitRemote,
 	}
 }
 

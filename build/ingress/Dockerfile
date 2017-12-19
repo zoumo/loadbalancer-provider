@@ -1,9 +1,5 @@
-FROM alpine:3.6
+FROM cargo.caicloudprivatetest.com/caicloud/lvs:alpine3.6
 
-RUN apk add --no-cache \
-    bash \
-    iptables
-
-COPY bin/ingress /root/ingress
+COPY bin/linux_amd64/ingress /root/ingress
 
 ENTRYPOINT ["/root/ingress"]

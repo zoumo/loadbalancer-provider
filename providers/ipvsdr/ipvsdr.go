@@ -234,11 +234,12 @@ func (p *IpvsdrProvider) Stop() error {
 
 // Info ...
 func (p *IpvsdrProvider) Info() core.Info {
+	info := version.Get()
 	return core.Info{
-		Name:       "ipvsdr",
-		Release:    version.RELEASE,
-		Build:      version.COMMIT,
-		Repository: version.REPO,
+		Name:      "ipvsdr",
+		Version:   info.Version,
+		GitCommit: info.GitCommit,
+		GitRemote: info.GitRemote,
 	}
 }
 

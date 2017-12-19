@@ -47,11 +47,11 @@ type Info struct {
 	// Name returns the name of the backend implementation
 	Name string `json:"name"`
 	// Release returns the running version (semver)
-	Release string `json:"release"`
+	Version string `json:"version"`
 	// Build returns information about the git commit
-	Build string `json:"build"`
-	// Repository return information about the git repository
-	Repository string `json:"repository"`
+	GitCommit string `json:"gitCommit"`
+	// GitRemote return information about the git remote repository
+	GitRemote string `json:"gitRemote"`
 }
 
 // StoreLister returns the configured store for loadbalancers, nodes
