@@ -24,9 +24,9 @@ import (
 	"time"
 
 	lbapi "github.com/caicloud/clientset/pkg/apis/loadbalance/v1alpha2"
+	nodeutil "github.com/caicloud/clientset/util/node"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/arp"
 	corenet "github.com/caicloud/loadbalancer-provider/core/pkg/net"
-	corenode "github.com/caicloud/loadbalancer-provider/core/pkg/node"
 	"github.com/caicloud/loadbalancer-provider/core/pkg/sysctl"
 	core "github.com/caicloud/loadbalancer-provider/core/provider"
 	"github.com/caicloud/loadbalancer-provider/pkg/version"
@@ -74,10 +74,12 @@ type IpvsdrProvider struct {
 	ipt               iptables.Interface
 	cfgMD5            string
 	vip               string
+	nodeIPLabels      []string
+	nodeIPAnnotations []string
 }
 
 // NewIpvsdrProvider creates a new ipvs-dr LoadBalancer Provider.
-func NewIpvsdrProvider(nodeIP net.IP, lb *lbapi.LoadBalancer, unicast bool) (*IpvsdrProvider, error) {
+func NewIpvsdrProvider(nodeIP net.IP, lb *lbapi.LoadBalancer, unicast bool, labels, annotations []string) (*IpvsdrProvider, error) {
 	nodeInfo, err := corenet.InterfaceByIP(nodeIP.String())
 	if err != nil {
 		log.Error("get node info err", log.Fields{"err": err})
@@ -94,6 +96,8 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *lbapi.LoadBalancer, unicast bool) (*Ip
 		vip:               lb.Spec.Providers.Ipvsdr.Vip,
 		sysctlDefault:     make(map[string]string, 0),
 		ipt:               iptInterface,
+		nodeIPLabels:      labels,
+		nodeIPAnnotations: annotations,
 	}
 
 	// neighbors := getNodeNeighbors(nodeInfo, clusterNodes)
@@ -259,7 +263,7 @@ func (p *IpvsdrProvider) getNodesIP(names []string) []string {
 		if err != nil {
 			continue
 		}
-		ip, err := corenode.GetNodeHostIP(node)
+		ip, err := nodeutil.GetNodeHostIP(node, p.nodeIPLabels, p.nodeIPAnnotations)
 		if err != nil {
 			continue
 		}

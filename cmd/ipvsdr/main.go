@@ -83,7 +83,10 @@ func Run(opts *Options) error {
 		return fmt.Errorf("no ipvsdr spec specified")
 	}
 
-	nodeIP, err := corenode.GetNodeIPForPod(clientset, opts.PodNamespace, opts.PodName)
+	labels := []string{opts.NodeIPLabel}
+	annotations := []string{opts.NodeIPAnnotation}
+
+	nodeIP, err := corenode.GetNodeIPForPod(clientset, opts.PodNamespace, opts.PodName, labels, annotations)
 	if err != nil {
 		log.Fatal("Can not get node ip", log.Fields{"err": err})
 		return err
@@ -101,7 +104,7 @@ func Run(opts *Options) error {
 		return err
 	}
 
-	ipvsdr, err := ipvsdr.NewIpvsdrProvider(nodeIP, lb, opts.Unicast)
+	ipvsdr, err := ipvsdr.NewIpvsdrProvider(nodeIP, lb, opts.Unicast, labels, annotations)
 	if err != nil {
 		log.Error("Create ipvsdr provider error", log.Fields{"err": err})
 		return err
