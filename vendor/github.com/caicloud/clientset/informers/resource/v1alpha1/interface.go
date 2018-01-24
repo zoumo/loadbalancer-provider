@@ -12,8 +12,6 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// StorageClasses returns a StorageClassInformer.
-	StorageClasses() StorageClassInformer
 	// StorageServices returns a StorageServiceInformer.
 	StorageServices() StorageServiceInformer
 	// StorageTypes returns a StorageTypeInformer.
@@ -27,11 +25,6 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory) Interface {
 	return &version{f}
-}
-
-// StorageClasses returns a StorageClassInformer.
-func (v *version) StorageClasses() StorageClassInformer {
-	return &storageClassInformer{factory: v.SharedInformerFactory}
 }
 
 // StorageServices returns a StorageServiceInformer.

@@ -6,10 +6,6 @@ Copyright 2017 caicloud authors. All rights reserved.
 
 package v1alpha1
 
-// StorageClassListerExpansion allows custom methods to be added to
-// StorageClassLister.
-type StorageClassListerExpansion interface{}
-
 // StorageServiceListerExpansion allows custom methods to be added to
 // StorageServiceLister.
 type StorageServiceListerExpansion interface{}

@@ -35,8 +35,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&StorageTypeList{},
 		&StorageService{},
 		&StorageServiceList{},
-		&StorageClass{},
-		&StorageClassList{},
 	)
 
 	// Add common types

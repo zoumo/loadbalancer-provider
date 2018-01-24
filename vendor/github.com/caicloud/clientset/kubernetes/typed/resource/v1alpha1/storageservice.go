@@ -23,7 +23,6 @@ type StorageServicesGetter interface {
 type StorageServiceInterface interface {
 	Create(*v1alpha1.StorageService) (*v1alpha1.StorageService, error)
 	Update(*v1alpha1.StorageService) (*v1alpha1.StorageService, error)
-	UpdateStatus(*v1alpha1.StorageService) (*v1alpha1.StorageService, error)
 	Delete(name string, options *v1.DeleteOptions) error
 	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
 	Get(name string, options v1.GetOptions) (*v1alpha1.StorageService, error)
@@ -62,21 +61,6 @@ func (c *storageServices) Update(storageService *v1alpha1.StorageService) (resul
 	err = c.client.Put().
 		Resource("storageservices").
 		Name(storageService.Name).
-		Body(storageService).
-		Do().
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclientstatus=false comment above the type to avoid generating UpdateStatus().
-
-func (c *storageServices) UpdateStatus(storageService *v1alpha1.StorageService) (result *v1alpha1.StorageService, err error) {
-	result = &v1alpha1.StorageService{}
-	err = c.client.Put().
-		Resource("storageservices").
-		Name(storageService.Name).
-		SubResource("status").
 		Body(storageService).
 		Do().
 		Into(result)
