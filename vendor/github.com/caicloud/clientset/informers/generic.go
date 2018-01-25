@@ -59,8 +59,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Release().V1alpha1().ReleaseHistories().Informer()}, nil
 
 		// Group=Resource, Version=V1alpha1
-	case resource_v1alpha1.SchemeGroupVersion.WithResource("storageclasses"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Resource().V1alpha1().StorageClasses().Informer()}, nil
 	case resource_v1alpha1.SchemeGroupVersion.WithResource("storageservices"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Resource().V1alpha1().StorageServices().Informer()}, nil
 	case resource_v1alpha1.SchemeGroupVersion.WithResource("storagetypes"):

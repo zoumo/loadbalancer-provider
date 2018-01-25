@@ -20,10 +20,10 @@
   version = "v7"
 
 [[projects]]
-  branch = "master"
+  branch = "release-1.7"
   name = "github.com/caicloud/clientset"
-  packages = ["informers","informers/apiextensions","informers/apiextensions/v1beta1","informers/config","informers/config/v1alpha1","informers/loadbalance","informers/loadbalance/v1alpha2","informers/release","informers/release/v1alpha1","informers/resource","informers/resource/v1alpha1","kubernetes","kubernetes/scheme","kubernetes/typed/apiextensions/v1beta1","kubernetes/typed/config/v1alpha1","kubernetes/typed/loadbalance/v1alpha2","kubernetes/typed/release/v1alpha1","kubernetes/typed/resource/v1alpha1","listers/apiextensions/v1beta1","listers/config/v1alpha1","listers/loadbalance/v1alpha2","listers/release/v1alpha1","listers/resource/v1alpha1","pkg/apis/apiextensions/v1beta1","pkg/apis/config/v1alpha1","pkg/apis/loadbalance/v1alpha2","pkg/apis/release/v1alpha1","pkg/apis/resource/v1alpha1","util/syncqueue"]
-  revision = "a5090530f8b2e28904667044b58a633c6a9e2252"
+  packages = ["informers","informers/apiextensions","informers/apiextensions/v1beta1","informers/config","informers/config/v1alpha1","informers/loadbalance","informers/loadbalance/v1alpha2","informers/release","informers/release/v1alpha1","informers/resource","informers/resource/v1alpha1","kubernetes","kubernetes/scheme","kubernetes/typed/apiextensions/v1beta1","kubernetes/typed/config/v1alpha1","kubernetes/typed/loadbalance/v1alpha2","kubernetes/typed/release/v1alpha1","kubernetes/typed/resource/v1alpha1","listers/apiextensions/v1beta1","listers/config/v1alpha1","listers/loadbalance/v1alpha2","listers/release/v1alpha1","listers/resource/v1alpha1","pkg/apis/apiextensions/v1beta1","pkg/apis/config/v1alpha1","pkg/apis/loadbalance/v1alpha2","pkg/apis/release/v1alpha1","pkg/apis/resource/v1alpha1","util/node","util/syncqueue"]
+  revision = "5163f4ee5c047dbd791c694a137973265a2262e7"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -276,12 +276,6 @@
   version = "v4.0.0"
 
 [[projects]]
-  name = "k8s.io/ingress"
-  packages = ["controllers/nginx/pkg/version"]
-  revision = "fe19ebb09ee22f90d60ba3111ae0a9db6027e675"
-  version = "0.9.6"
-
-[[projects]]
   name = "k8s.io/kubernetes"
   packages = ["pkg/util/dbus","pkg/util/exec","pkg/util/iptables","pkg/util/version"]
   revision = "bebdeb749f1fa3da9e1312c4b08e439c404b3136"
@@ -290,6 +284,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c8f189f72b5599d8b6839b68f916fdc7986b7c42d9b6fd43f93f58cd776eb62a"
+  inputs-digest = "84cfd2962e0de74b479f87567b3fd8a11ac3bac56848e36492d8622fee69c86d"
   solver-name = "gps-cdcl"
   solver-version = 1

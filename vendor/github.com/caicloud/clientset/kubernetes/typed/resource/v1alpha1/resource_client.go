@@ -13,7 +13,6 @@ import (
 
 type ResourceV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	StorageClassesGetter
 	StorageServicesGetter
 	StorageTypesGetter
 }
@@ -21,10 +20,6 @@ type ResourceV1alpha1Interface interface {
 // ResourceV1alpha1Client is used to interact with features provided by the resource group.
 type ResourceV1alpha1Client struct {
 	restClient rest.Interface
-}
-
-func (c *ResourceV1alpha1Client) StorageClasses() StorageClassInterface {
-	return newStorageClasses(c)
 }
 
 func (c *ResourceV1alpha1Client) StorageServices() StorageServiceInterface {

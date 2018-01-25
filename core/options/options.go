@@ -26,6 +26,8 @@ type Options struct {
 	LoadBalancerName      string
 	PodNamespace          string
 	PodName               string
+	NodeIPLabel           string
+	NodeIPAnnotation      string
 }
 
 // AddFlags add flags to app
@@ -65,6 +67,18 @@ func (opts *Options) AddFlags(app *cli.App) {
 			EnvVar:      "POD_NAME",
 			Usage:       "specify pod name",
 			Destination: &opts.PodName,
+		},
+		cli.StringFlag{
+			Name:        "nodeip-label",
+			EnvVar:      "NODEIP_LABEL",
+			Usage:       "tell provider which label of node stores node ip",
+			Destination: &opts.NodeIPLabel,
+		},
+		cli.StringFlag{
+			Name:        "nodeip-annotation",
+			EnvVar:      "NODEIP_ANNOTATION",
+			Usage:       "tell provider which annotation of node stores node ip",
+			Destination: &opts.NodeIPAnnotation,
 		},
 	}
 
