@@ -73,8 +73,11 @@ func Run(opts *Options) error {
 		return err
 	}
 
+	labels := []string{opts.NodeIPLabel}
+	annotations := []string{opts.NodeIPAnnotation}
+
 	// get node ip
-	nodeIP, err := corenode.GetNodeIPForPod(clientset, opts.PodNamespace, opts.PodName)
+	nodeIP, err := corenode.GetNodeIPForPod(clientset, opts.PodNamespace, opts.PodName, labels, annotations)
 	if err != nil {
 		log.Fatal("Can not get node ip", log.Fields{"err": err})
 		return err

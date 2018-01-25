@@ -24,9 +24,7 @@ import (
 // Options contains controller options
 type Options struct {
 	*options.Options
-	Unicast          bool
-	NodeIPLabel      string
-	NodeIPAnnotation string
+	Unicast bool
 }
 
 // NewOptions reutrns a new Options
@@ -46,18 +44,6 @@ func (opts *Options) AddFlags(app *cli.App) {
 			Name:        "unicast",
 			Usage:       "use unicast instead of multicast for communication with other keepalived instances",
 			Destination: &opts.Unicast,
-		},
-		cli.StringFlag{
-			Name:        "nodeip-label",
-			EnvVar:      "NODEIP_LABEL",
-			Usage:       "tell provider which label of node stores node ip",
-			Destination: &opts.NodeIPLabel,
-		},
-		cli.StringFlag{
-			Name:        "nodeip-annotation",
-			EnvVar:      "NODEIP_ANNOTATION",
-			Usage:       "tell provider which annotation of node stores node ip",
-			Destination: &opts.NodeIPAnnotation,
 		},
 	}
 
