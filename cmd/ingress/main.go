@@ -121,7 +121,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "ingress sidecar"
 	app.Compiled = time.Now()
-
+	app.Version = version.Get().Version
 	// add flags to app
 	opts := NewOptions()
 	opts.AddFlags(app)
