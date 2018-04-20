@@ -93,7 +93,7 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *lbapi.LoadBalancer, unicast bool, labe
 	ipvs := &IpvsdrProvider{
 		nodeInfo:          nodeInfo,
 		reloadRateLimiter: flowcontrol.NewTokenBucketRateLimiter(10.0, 10),
-		vip:               lb.Spec.Providers.Ipvsdr.Vip,
+		vip:               lb.Spec.Providers.Ipvsdr.VIP,
 		sysctlDefault:     make(map[string]string, 0),
 		ipt:               iptInterface,
 		nodeIPLabels:      labels,
@@ -152,7 +152,7 @@ func (p *IpvsdrProvider) OnUpdate(lb *lbapi.LoadBalancer) error {
 	}
 
 	svc := virtualServer{
-		VIP:        lb.Spec.Providers.Ipvsdr.Vip,
+		VIP:        lb.Spec.Providers.Ipvsdr.VIP,
 		Scheduler:  string(lb.Spec.Providers.Ipvsdr.Scheduler),
 		RealServer: selectedNodes,
 	}
