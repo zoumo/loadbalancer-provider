@@ -196,17 +196,14 @@ func (p *IpvsdrProvider) Start() {
 	p.changeSysctl()
 	p.setLoopbackVIP()
 	p.ensureChain()
-	go p.keepalived.Start()
+	p.keepalived.Start()
 	return
 }
 
 // WaitForStart waits for ipvsdr fully run
 func (p *IpvsdrProvider) WaitForStart() bool {
 	err := wait.Poll(time.Second, 60*time.Second, func() (bool, error) {
-		if p.keepalived.started && p.keepalived.cmd != nil && p.keepalived.cmd.Process != nil {
-			return true, nil
-		}
-		return false, nil
+		return p.keepalived.isRunning(), nil
 	})
 
 	if err != nil {

@@ -20,11 +20,12 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"syscall"
 	"text/template"
+	"time"
 
 	corenet "github.com/caicloud/loadbalancer-provider/core/pkg/net"
+	"github.com/caicloud/loadbalancer-provider/pkg/execd"
 	log "github.com/zoumo/logdog"
 
 	k8sexec "k8s.io/kubernetes/pkg/util/exec"
@@ -53,11 +54,10 @@ type virtualServer struct {
 }
 
 type keepalived struct {
-	started    bool
 	useUnicast bool
 	nodeInfo   *corenet.Interface
 	ipt        iptables.Interface
-	cmd        *exec.Cmd
+	cmd        *execd.D
 	tmpl       *template.Template
 	vips       []string
 }
@@ -112,36 +112,43 @@ func (k *keepalived) Start() {
 		log.Infof("chain %v already existed", iptablesChain)
 	}
 
-	k.cmd = exec.Command("keepalived",
+	go k.run()
+}
+
+func (k *keepalived) isRunning() bool {
+	return k.cmd.IsRunning()
+}
+
+func (k *keepalived) run() {
+	k.cmd = execd.Daemon("keepalived",
 		"--dont-fork",
 		"--log-console",
 		"--release-vips",
 		"--pid", "/keepalived.pid")
-
+	// put keepalived in another process group to prevent it
+	// to receive signals meant for the controller
+	// k.cmd.SysProcAttr = &syscall.SysProcAttr{
+	// 	Setpgid: true,
+	// 	Pgid:    0,
+	// }
 	k.cmd.Stdout = os.Stdout
 	k.cmd.Stderr = os.Stderr
 
-	k.started = true
+	k.cmd.SetGracePeriod(1 * time.Second)
 
-	if err := k.cmd.Start(); err != nil {
-		log.Errorf("keepalived error: %v", err)
-	}
-
-	if err := k.cmd.Wait(); err != nil {
-		log.Fatalf("keepalived error: %v", err)
+	if err := k.cmd.RunForever(); err != nil {
+		panic(fmt.Sprintf("can not run keepalived, %v", err))
 	}
 }
 
 // Reload sends SIGHUP to keepalived to reload the configuration.
 func (k *keepalived) Reload() error {
-	if !k.started {
-		// TODO: add a warning indicating that keepalived is not started?
-		log.Warn("keepalived is not started, skip the reload")
+	log.Info("reloading keepalived")
+	err := k.cmd.Signal(syscall.SIGHUP)
+	if err == execd.ErrNotRunning {
+		log.Warn("keepalived is not running, skip the reload")
 		return nil
 	}
-
-	log.Info("reloading keepalived")
-	err := syscall.Kill(k.cmd.Process.Pid, syscall.SIGHUP)
 	if err != nil {
 		return fmt.Errorf("error reloading keepalived: %v", err)
 	}
@@ -161,8 +168,8 @@ func (k *keepalived) Stop() {
 		log.Errorf("unexpected error flushing iptables chain %v: %v", err, iptablesChain)
 	}
 
-	log.Info("kill keepalived process", log.Fields{"pid": k.cmd.Process.Pid})
-	err = syscall.Kill(k.cmd.Process.Pid, syscall.SIGTERM)
+	log.Info("stop keepalived process")
+	err = k.cmd.Stop()
 	if err != nil {
 		log.Errorf("error stopping keepalived: %v", err)
 	}
