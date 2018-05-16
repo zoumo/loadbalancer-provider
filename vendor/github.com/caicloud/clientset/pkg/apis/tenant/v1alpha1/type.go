@@ -22,6 +22,12 @@ const (
 
 	// SystemTenant defines name of system tenant
 	SystemTenant = "system-tenant"
+
+	// ResourceNvidiaGPU defines nvidia gpu
+	ResourceNvidiaGPU v1.ResourceName = "nvidia.com/gpu"
+
+	// ResourceRequestsNvidiaGPU  defines nvidia gpu requests
+	ResourceRequestsNvidiaGPU v1.ResourceName = "requests.nvidia.com/gpu"
 )
 
 var (
@@ -33,8 +39,9 @@ var (
 		"limits.memory",
 		"requests.cpu",
 		"requests.memory",
+		"requests.nvidia.com/gpu",
+		// Deprecated
 		"alpha.kubernetes.io/nvidia-gpu",
-		"nvidia.com/gpu",
 	}
 )
 
