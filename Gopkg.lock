@@ -2,7 +2,7 @@
 
 
 [[projects]]
-  branch = "master"
+  branch = "release-1.10"
   name = "github.com/caicloud/clientset"
   packages = [
     "informers",
@@ -55,7 +55,7 @@
     "util/node",
     "util/syncqueue"
   ]
-  revision = "64cb09fe529861c8c236178d429af06128caad5e"
+  revision = "93ede7f1136a0c7b85296702c7ad587db8cf37d7"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -147,6 +147,15 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/keybase/go-ps"
+  packages = [
+    ".",
+    "darwincgo"
+  ]
+  revision = "668c8856d9992f97248b3177d45743d2cc1068db"
+
+[[projects]]
+  branch = "master"
   name = "github.com/mdlayher/arp"
   packages = ["."]
   revision = "43953fc6354aa71b6d6814755eceba262eae9246"
@@ -161,6 +170,12 @@
   name = "github.com/mdlayher/raw"
   packages = ["."]
   revision = "140ca93cb1bb2d19be9453ed538f320898a6f02f"
+
+[[projects]]
+  name = "github.com/moby/moby"
+  packages = ["pkg/reexec"]
+  revision = "092cba3727bb9b4a2f0e922cd6c0f93ea270e363"
+  version = "v1.13.1"
 
 [[projects]]
   name = "github.com/modern-go/concurrent"
@@ -500,6 +515,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "782be46fedc52733befb82a7affb665238e476b15b6d258377b6e029d53226bb"
+  inputs-digest = "c9dade52b2b0abe599f94fb2e92e2732928c0121834d415addb72fe21bc0b844"
   solver-name = "gps-cdcl"
   solver-version = 1
