@@ -163,6 +163,12 @@ func (p *GenericProvider) updateLoadBalancer(oldObj, curObj interface{}) {
 	if p.filterLoadBalancer(cur) {
 		return
 	}
+
+	// ignore change of status
+	if reflect.DeepEqual(old.Spec, cur.Spec) {
+		return
+	}
+
 	log.Info("Updating LoadBalancer")
 
 	p.queue.Enqueue(cur)

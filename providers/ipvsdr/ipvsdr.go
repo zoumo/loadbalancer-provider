@@ -142,8 +142,6 @@ func (p *IpvsdrProvider) OnUpdate(lb *lbapi.LoadBalancer) error {
 
 	tcpPorts, udpPorts := core.GetExportedPorts(tcpcm, udpcm)
 
-	log.Info("Updating config")
-
 	// get selected nodes' ip
 	selectedNodes := p.getNodesIP(lb.Spec.Nodes.Names)
 	if len(selectedNodes) == 0 {
@@ -366,7 +364,15 @@ func (p *IpvsdrProvider) resolveNeighbors(neighbors []string) []ipmac {
 	return resolvedNeighbors
 }
 
-func (p *IpvsdrProvider) setIptablesMark(protocol string, mark int, mac string, ports []string) (bool, error) {
+func (p *IpvsdrProvider) appendIptablesMark(protocol string, mark int, mac string, ports []string) (bool, error) {
+	return p.setIptablesMark(iptables.Append, protocol, mark, mac, ports)
+}
+
+func (p *IpvsdrProvider) prependIptablesMark(protocol string, mark int, mac string, ports []string) (bool, error) {
+	return p.setIptablesMark(iptables.Prepend, protocol, mark, mac, ports)
+}
+
+func (p *IpvsdrProvider) setIptablesMark(position iptables.RulePosition, protocol string, mark int, mac string, ports []string) (bool, error) {
 	args := make([]string, 0)
 	args = append(args, "-i", p.nodeInfo.Name, "-d", p.vip, "-p", protocol)
 
@@ -380,7 +386,7 @@ func (p *IpvsdrProvider) setIptablesMark(protocol string, mark int, mac string, 
 
 	args = append(args, "-j", "MARK", "--set-xmark", fmt.Sprintf("%s/%s", strconv.Itoa(mark), mask))
 
-	return p.ipt.EnsureRule(iptables.Append, tableMangle, iptablesChain, args...)
+	return p.ipt.EnsureRule(position, tableMangle, iptablesChain, args...)
 }
 
 func (p *IpvsdrProvider) ensureIptablesMark(neighbors []ipmac, tcpPorts, udpPorts []string) {
@@ -389,33 +395,36 @@ func (p *IpvsdrProvider) ensureIptablesMark(neighbors []ipmac, tcpPorts, udpPort
 	// flush all rules
 	p.flushChain()
 
-	// this two rules should be appended firstly
-	// they mark all matched tcp and udp traffics with 1
-	if len(tcpPorts) > 0 {
-		_, err := p.setIptablesMark("tcp", acceptMark, "", tcpPorts)
-		if err != nil {
-			log.Error("error ensure iptables tcp rule for", log.Fields{"tcpPorts": tcpPorts})
-		}
-	}
-	if len(udpPorts) > 0 {
-		_, err := p.setIptablesMark("udp", acceptMark, "", udpPorts)
-		if err != nil {
-			log.Error("error ensure iptables udp rule for", log.Fields{"udpPorts": udpPorts})
-		}
-	}
+	// Accoding to #19
+	// we must add the mark 0 firstly and then prepend mark 1
+	// so that
 
 	// all neighbors' rules should be under the basic rules, to override it
 	// make sure that all traffics which come from the neighbors will be marked with 0
 	// and than lvs will ignore it
 	for _, neighbor := range neighbors {
-		_, err := p.setIptablesMark("tcp", dropMark, neighbor.MAC.String(), nil)
+		_, err := p.appendIptablesMark("tcp", dropMark, neighbor.MAC.String(), nil)
 		if err != nil {
 			log.Error("failed to ensure iptables tcp rule for", log.Fields{"ip": neighbor.IP, "mac": neighbor.MAC.String(), "mark": dropMark, "err": err})
 		}
-		_, err = p.setIptablesMark("udp", dropMark, neighbor.MAC.String(), nil)
+		_, err = p.appendIptablesMark("udp", dropMark, neighbor.MAC.String(), nil)
 		if err != nil {
 			log.Error("failed to ensure iptables udp rule for", log.Fields{"ip": neighbor.IP, "mac": neighbor.MAC.String(), "mark": dropMark, "err": err})
 		}
 	}
 
+	// this two rules must be prepend before mark 0
+	// they mark all matched tcp and udp traffics with 1
+	if len(tcpPorts) > 0 {
+		_, err := p.prependIptablesMark("tcp", acceptMark, "", tcpPorts)
+		if err != nil {
+			log.Error("error ensure iptables tcp rule for", log.Fields{"tcpPorts": tcpPorts})
+		}
+	}
+	if len(udpPorts) > 0 {
+		_, err := p.prependIptablesMark("udp", acceptMark, "", udpPorts)
+		if err != nil {
+			log.Error("error ensure iptables udp rule for", log.Fields{"udpPorts": udpPorts})
+		}
+	}
 }
