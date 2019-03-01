@@ -19,6 +19,7 @@ package provider
 import (
 	"github.com/caicloud/clientset/kubernetes"
 	lblisters "github.com/caicloud/clientset/listers/loadbalance/v1alpha2"
+	"github.com/caicloud/clientset/listers/resource/v1beta1"
 	lbapi "github.com/caicloud/clientset/pkg/apis/loadbalance/v1alpha2"
 	v1listers "k8s.io/client-go/listers/core/v1"
 )
@@ -59,6 +60,8 @@ type StoreLister struct {
 	LoadBalancer lblisters.LoadBalancerLister
 	Node         v1listers.NodeLister
 	ConfigMap    v1listers.ConfigMapLister
+	Secret       v1listers.SecretLister
+	Machine      v1beta1.MachineLister
 }
 
 // Configuration contains all the settings required by an LoadBalancer controller

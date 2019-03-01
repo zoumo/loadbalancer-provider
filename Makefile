@@ -41,14 +41,14 @@ GO_ONBUILD_IMAGE := cargo.caicloudprivatetest.com/caicloud/golang:1.9.2-alpine3.
 # Building for these platforms.
 GO_BUILD_PLATFORMS ?= linux/amd64 darwin/amd64
 # Pre-defined all directory names of targets for go build. 
-GO_BUILD_TARGETS := cmd/ingress cmd/ipvsdr
+GO_BUILD_TARGETS := cmd/ingress cmd/ipvsdr cmd/azure 
 # Targets using CGO_ENABLED=0. It is a single word without dir prefix.
 GO_STATIC_LIBRARIES := 
 # Skip go unittest under the following dir.
 GO_TEST_EXCEPTIONS :=
 
 # Pre-defined all directories containing Dockerfiles for building containers.
-DOCKER_BUILD_TARGETS := build/ingress build/ipvsdr
+DOCKER_BUILD_TARGETS := build/ingress build/ipvsdr build/azure
 # Container registries.
 DOCKER_REGISTRIES := cargo.caicloudprivatetest.com/caicloud 
 # Force pushing to override images in remote registries

@@ -50,7 +50,7 @@ var (
 // packetConn is the Linux-specific implementation of net.PacketConn for this
 // package.
 type packetConn struct {
-	proto  Protocol
+	proto  uint16
 	ifi    *net.Interface
 	f      *os.File
 	fd     int
@@ -63,11 +63,10 @@ type packetConn struct {
 
 // listenPacket creates a net.PacketConn which can be used to send and receive
 // data at the device driver level.
-//
-// ifi specifies the network interface which will be used to send and receive
-// data.  proto specifies the protocol which should be captured and
-// transmitted.
-func listenPacket(ifi *net.Interface, proto Protocol) (*packetConn, error) {
+func listenPacket(ifi *net.Interface, proto uint16, _ Config) (*packetConn, error) {
+	// Config is, as of now, unused on BSD.
+	// TODO(mdlayher): consider porting NoTimeouts option to BSD if it pans out.
+
 	var f *os.File
 	var err error
 
@@ -122,7 +121,6 @@ func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 
 	buf := make([]byte, p.buflen)
 	var n int
-	var err error
 
 	for {
 		var timeout time.Duration
@@ -130,19 +128,17 @@ func (p *packetConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		if deadline.IsZero() {
 			timeout = readTimeout
 		} else {
-			timeout = deadline.Sub(time.Now())
+			timeout = time.Until(deadline)
 			if timeout > readTimeout {
 				timeout = readTimeout
 			}
 		}
 
-		tv := newTimeval(timeout)
-		if tv.Nano() == 0 {
-			// A zero timeout disables the timeout. Return a timeout error in this case.
-			return 0, nil, &timeoutError{}
+		tv, err := newTimeval(timeout)
+		if err != nil {
+			return 0, nil, err
 		}
-
-		if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(p.fd), syscall.BIOCSRTIMEOUT, uintptr(unsafe.Pointer(&tv))); err != 0 {
+		if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(p.fd), syscall.BIOCSRTIMEOUT, uintptr(unsafe.Pointer(tv))); err != 0 {
 			return 0, nil, syscall.Errno(err)
 		}
 
@@ -224,7 +220,6 @@ func (p *packetConn) SetBPF(filter []bpf.RawInstruction) error {
 // SetPromiscuous enables or disables promiscuous mode on the interface, allowing it
 // to receive traffic that is not addressed to the interface.
 func (p *packetConn) SetPromiscuous(b bool) error {
-
 	m := 1
 	if !b {
 		m = 0
@@ -233,9 +228,14 @@ func (p *packetConn) SetPromiscuous(b bool) error {
 	return syscall.SetBpfPromisc(p.fd, m)
 }
 
+// Stats retrieves statistics from the Conn.
+func (p *packetConn) Stats() (*Stats, error) {
+	return nil, ErrNotImplemented
+}
+
 // configureBPF configures a BPF device with the specified file descriptor to
 // use the specified network and interface and protocol.
-func configureBPF(fd int, ifi *net.Interface, proto Protocol) (int, error) {
+func configureBPF(fd int, ifi *net.Interface, proto uint16) (int, error) {
 	// Use specified interface with BPF device
 	if err := syscall.SetBpfInterface(fd, ifi.Name); err != nil {
 		return 0, err
@@ -280,25 +280,6 @@ func configureBPF(fd int, ifi *net.Interface, proto Protocol) (int, error) {
 	return buflen, nil
 }
 
-// setBPFDirection enables filtering traffic traveling in a specific direction
-// using BPF, so that traffic sent by this package is not captured when reading
-// using this package.
-func setBPFDirection(fd int, direction int) error {
-	_, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		uintptr(fd),
-		// Even though BIOCSDIRECTION is preferred on FreeBSD, BIOCSSEESENT continues
-		// to work, and is required for other BSD platforms
-		syscall.BIOCSSEESENT,
-		uintptr(unsafe.Pointer(&direction)),
-	)
-	if err != 0 {
-		return syscall.Errno(err)
-	}
-
-	return nil
-}
-
 // assembleBpfInsn assembles a slice of bpf.RawInstructions to the format required by
 // package syscall.
 func assembleBpfInsn(filter []bpf.RawInstruction) []syscall.BpfInsn {
@@ -320,7 +301,7 @@ func assembleBpfInsn(filter []bpf.RawInstruction) []syscall.BpfInsn {
 
 // baseInterfaceFilter creates a base BPF filter which filters traffic based
 // on its EtherType and returns up to "mtu" bytes of data for processing.
-func baseInterfaceFilter(proto Protocol, mtu int) []bpf.Instruction {
+func baseInterfaceFilter(proto uint16, mtu int) []bpf.Instruction {
 	return append(
 		// Filter traffic based on EtherType
 		baseFilter(proto),
@@ -334,7 +315,7 @@ func baseInterfaceFilter(proto Protocol, mtu int) []bpf.Instruction {
 // baseFilter creates a base BPF filter which filters traffic based on its
 // EtherType.  baseFilter can be prepended to other filters to handle common
 // filtering tasks.
-func baseFilter(proto Protocol) []bpf.Instruction {
+func baseFilter(proto uint16) []bpf.Instruction {
 	// Offset | Length | Comment
 	// -------------------------
 	//   00   |   06   | Ethernet destination MAC address
