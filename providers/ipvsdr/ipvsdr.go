@@ -67,6 +67,7 @@ var (
 // IpvsdrProvider ...
 type IpvsdrProvider struct {
 	nodeInfo          *corenet.Interface
+	nodeIP            net.IP
 	reloadRateLimiter flowcontrol.RateLimiter
 	keepalived        *keepalived
 	storeLister       core.StoreLister
@@ -91,6 +92,7 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *lbapi.LoadBalancer, unicast bool, labe
 	iptInterface := iptables.New(execer, dbus, iptables.ProtocolIpv4)
 
 	ipvs := &IpvsdrProvider{
+		nodeIP:            nodeIP,
 		nodeInfo:          nodeInfo,
 		reloadRateLimiter: flowcontrol.NewTokenBucketRateLimiter(10.0, 10),
 		vip:               lb.Spec.Providers.Ipvsdr.Vip,
@@ -102,6 +104,7 @@ func NewIpvsdrProvider(nodeIP net.IP, lb *lbapi.LoadBalancer, unicast bool, labe
 
 	// neighbors := getNodeNeighbors(nodeInfo, clusterNodes)
 	ipvs.keepalived = &keepalived{
+		nodeIP:     nodeIP,
 		nodeInfo:   nodeInfo,
 		useUnicast: unicast,
 		ipt:        iptInterface,
@@ -155,12 +158,12 @@ func (p *IpvsdrProvider) OnUpdate(lb *lbapi.LoadBalancer) error {
 		RealServer: selectedNodes,
 	}
 
-	neighbors := p.resolveNeighbors(getNeighbors(p.nodeInfo.IP, selectedNodes))
+	neighbors := p.resolveNeighbors(getNeighbors(p.nodeIP.String(), selectedNodes))
 
 	err = p.keepalived.UpdateConfig(
 		[]virtualServer{svc},
 		neighbors,
-		getNodePriority(p.nodeInfo.IP, selectedNodes),
+		getNodePriority(p.nodeIP.String(), selectedNodes),
 		*lb.Status.ProvidersStatuses.Ipvsdr.Vrid,
 	)
 	if err != nil {
