@@ -53,3 +53,7 @@
   revision = "140ca93cb1bb2d19be9453ed538f320898a6f02f"
   name = "github.com/mdlayher/raw"
  
+[prune]
+  go-tests = true
+  unused-packages = true
+  non-go = true
